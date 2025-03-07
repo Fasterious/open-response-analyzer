@@ -248,27 +248,33 @@ function formatAnalysis(analysis) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Fonction utilitaire pour vérifier si un élément existe
+    function getElement(id) {
+        const element = document.getElementById(id);
+        return element;
+    }
+
     // Éléments DOM
-    const uploadForm = document.getElementById('uploadForm');
-    const fileInput = document.getElementById('file');
-    const fileInfo = document.getElementById('fileInfo');
-    const rowCount = document.getElementById('rowCount');
-    const columnList = document.getElementById('columnList');
-    const columnSelectContainer = document.getElementById('columnSelectContainer');
-    const columnSelect = document.getElementById('columnSelect');
-    const processBtn = document.getElementById('processBtn');
-    const exportCsvBtn = document.getElementById('exportCsvBtn');
-    const exportJsonBtn = document.getElementById('exportJsonBtn');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const testBtn = document.getElementById('testBtn');
+    const uploadForm = getElement('uploadForm');
+    const fileInput = getElement('file');
+    const fileInfo = getElement('fileInfo');
+    const rowCount = getElement('rowCount');
+    const columnList = getElement('columnList');
+    const columnSelectContainer = getElement('columnSelectContainer');
+    const columnSelect = getElement('columnSelect');
+    const processBtn = getElement('processBtn');
+    const exportCsvBtn = getElement('exportCsvBtn');
+    const exportJsonBtn = getElement('exportJsonBtn');
+    const analyzeBtn = getElement('analyzeBtn');
+    const testBtn = getElement('testBtn');
     
     // Éléments pour l'analyse individuelle
-    const responseForm = document.getElementById('responseForm');
-    const responseText = document.getElementById('responseText');
-    const singlePrompt = document.getElementById('singlePrompt');
-    const singleResultCard = document.getElementById('singleResultCard');
-    const originalResponse = document.getElementById('originalResponse');
-    const analysisResult = document.getElementById('analysisResult');
+    const responseForm = getElement('responseForm');
+    const responseText = getElement('responseText');
+    const singlePrompt = getElement('singlePrompt');
+    const singleResultCard = getElement('singleResultCard');
+    const originalResponse = getElement('originalResponse');
+    const analysisResult = getElement('analysisResult');
     
     console.log("Initialisation des éléments DOM");
     console.log("Bouton de test trouvé:", testBtn);
@@ -279,29 +285,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Onglets de résultats
-    const loadingTags = document.getElementById('loadingTags');
-    const loadingSummaries = document.getElementById('loadingSummaries');
-    const tagsContent = document.getElementById('tagsContent');
-    const summariesContent = document.getElementById('summariesContent');
-    const dataContent = document.getElementById('dataContent');
-    const noTagsContent = document.getElementById('noTagsContent');
-    const noSummariesContent = document.getElementById('noSummariesContent');
-    const noDataContent = document.getElementById('noDataContent');
+    const loadingTags = getElement('loadingTags');
+    const loadingSummaries = getElement('loadingSummaries');
+    const tagsContent = getElement('tagsContent');
+    const summariesContent = getElement('summariesContent');
+    const dataContent = getElement('dataContent');
+    const noTagsContent = getElement('noTagsContent');
+    const noSummariesContent = getElement('noSummariesContent');
+    const noDataContent = getElement('noDataContent');
     
     // Éléments pour les synthèses
-    const tagSelector = document.getElementById('tagSelector');
-    const tagSummaryContainer = document.getElementById('tagSummaryContainer');
-    const currentTagName = document.getElementById('currentTagName');
-    const tagSummaryContent = document.getElementById('tagSummaryContent');
-    const tagResponsesList = document.getElementById('tagResponsesList');
+    const tagSelector = getElement('tagSelector');
+    const tagSummaryContainer = getElement('tagSummaryContainer');
+    const currentTagName = getElement('currentTagName');
+    const tagSummaryContent = getElement('tagSummaryContent');
+    const tagResponsesList = getElement('tagResponsesList');
     
     // Éléments pour le modal de configuration
-    const configForm = document.getElementById('configForm');
-    const providerSelect = document.getElementById('provider');
-    const modelInput = document.getElementById('model');
-    const apiKeyInput = document.getElementById('apiKey');
-    const endpointInput = document.getElementById('endpoint');
-    const saveConfigBtn = document.getElementById('saveConfigBtn');
+    const configForm = getElement('configForm');
+    const providerSelect = getElement('provider');
+    const modelInput = getElement('model');
+    const apiKeyInput = getElement('apiKey');
+    const endpointInput = getElement('endpoint');
+    const saveConfigBtn = getElement('saveConfigBtn');
     
     // Variables globales
     let analysisResults = null;
@@ -309,232 +315,250 @@ document.addEventListener('DOMContentLoaded', function() {
     let tagsChart = null;
     
     // Gestion du formulaire d'upload
-    uploadForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        if (!fileInput.files[0]) {
-            showAlert('Veuillez sélectionner un fichier', 'danger');
-            return;
-        }
-        
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        
-        // Afficher un indicateur de chargement
-        showLoading('Importation en cours...');
-        
-        // Envoyer le fichier au serveur
-        fetch('/api/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            if (data.success) {
-                // Mettre à jour les informations du fichier
-                rowCount.textContent = data.rows;
-                columnList.textContent = data.columns.join(', ');
+            if (!fileInput.files[0]) {
+                showAlert('Veuillez sélectionner un fichier', 'danger');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            // Afficher un indicateur de chargement
+            showLoading('Importation en cours...');
+            
+            // Envoyer le fichier au serveur
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
                 
-                // Remplir la liste déroulante des colonnes
-                columnSelect.innerHTML = '';
-                data.columns.forEach(column => {
-                    const option = document.createElement('option');
-                    option.value = column;
-                    option.textContent = column;
+                if (data.success) {
+                    // Mettre à jour les informations du fichier
+                    rowCount.textContent = data.rows;
+                    columnList.textContent = data.columns.join(', ');
                     
-                    // Sélectionner par défaut la colonne "response" si elle existe
-                    if (column.toLowerCase() === 'response' || column.toLowerCase() === 'réponse') {
-                        option.selected = true;
-                        currentColumnName = column;
+                    // Remplir la liste déroulante des colonnes
+                    columnSelect.innerHTML = '';
+                    data.columns.forEach(column => {
+                        const option = document.createElement('option');
+                        option.value = column;
+                        option.textContent = column;
+                        
+                        // Sélectionner par défaut la colonne "response" si elle existe
+                        if (column.toLowerCase() === 'response' || column.toLowerCase() === 'réponse') {
+                            option.selected = true;
+                            currentColumnName = column;
+                        }
+                        
+                        columnSelect.appendChild(option);
+                    });
+                    
+                    // Afficher les éléments d'information et le bouton de traitement
+                    fileInfo.classList.remove('d-none');
+                    
+                    if (data.columns.length > 1) {
+                        columnSelectContainer.classList.remove('d-none');
+                    } else {
+                        columnSelectContainer.classList.add('d-none');
                     }
                     
-                    columnSelect.appendChild(option);
-                });
-                
-                // Afficher les éléments d'information et le bouton de traitement
-                fileInfo.classList.remove('d-none');
-                
-                if (data.columns.length > 1) {
-                    columnSelectContainer.classList.remove('d-none');
+                    // Gestion du changement de colonne
+                    if (columnSelect) {
+                        columnSelect.addEventListener('change', function() {
+                            currentColumnName = this.value;
+                            console.log(`Colonne sélectionnée: ${currentColumnName}`);
+                            
+                            // Activer le bouton de traitement
+                            if (processBtn) {
+                                processBtn.disabled = false;
+                            }
+                        });
+                    }
+                    
+                    // Afficher l'aperçu dans l'onglet Données
+                    updateDataTable(data.preview, null);
+                    dataContent.classList.remove('d-none');
+                    noDataContent.classList.add('d-none');
+                    
+                    showAlert(`Fichier importé avec succès: ${data.rows} lignes`, 'success');
                 } else {
-                    columnSelectContainer.classList.add('d-none');
+                    showAlert(`Erreur lors de l'importation: ${data.error}`, 'danger');
                 }
-                
-                // Affecter les événements après le chargement
-                columnSelect.addEventListener('change', function() {
-                    currentColumnName = this.value;
-                });
-                
-                // Afficher l'aperçu dans l'onglet Données
-                updateDataTable(data.preview, null);
-                dataContent.classList.remove('d-none');
-                noDataContent.classList.add('d-none');
-                
-                showAlert(`Fichier importé avec succès: ${data.rows} lignes`, 'success');
-            } else {
-                showAlert(`Erreur lors de l'importation: ${data.error}`, 'danger');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            showAlert(`Erreur lors de l'importation: ${error.message}`, 'danger');
+            })
+            .catch(error => {
+                hideLoading();
+                showAlert(`Erreur lors de l'importation: ${error.message}`, 'danger');
+            });
         });
-    });
+    }
     
     // Traitement des données
-    processBtn.addEventListener('click', function() {
-        if (!currentColumnName) {
-            showAlert('Veuillez sélectionner une colonne à analyser', 'warning');
-            return;
-        }
-        
-        // Afficher les indicateurs de chargement
-        showLoading('Analyse en cours...');
-        loadingTags.classList.remove('d-none');
-        tagsContent.classList.add('d-none');
-        noTagsContent.classList.add('d-none');
-        loadingSummaries.classList.remove('d-none');
-        summariesContent.classList.add('d-none');
-        noSummariesContent.classList.add('d-none');
-        
-        // Désactiver les boutons d'exportation pendant le traitement
-        exportCsvBtn.disabled = true;
-        exportJsonBtn.disabled = true;
-        
-        // Appeler l'API pour le traitement
-        fetch('/api/process', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                column: currentColumnName
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
-            loadingTags.classList.add('d-none');
-            loadingSummaries.classList.add('d-none');
+    if (processBtn) {
+        processBtn.addEventListener('click', function() {
+            if (!currentColumnName) {
+                showAlert('Veuillez sélectionner une colonne à analyser', 'warning');
+                return;
+            }
             
-            if (data.success) {
-                // Stocker les résultats
-                analysisResults = data.results;
+            // Afficher les indicateurs de chargement
+            showLoading('Analyse en cours...');
+            loadingTags.classList.remove('d-none');
+            tagsContent.classList.add('d-none');
+            noTagsContent.classList.add('d-none');
+            loadingSummaries.classList.remove('d-none');
+            summariesContent.classList.add('d-none');
+            noSummariesContent.classList.add('d-none');
+            
+            // Désactiver les boutons d'exportation pendant le traitement
+            exportCsvBtn.disabled = true;
+            exportJsonBtn.disabled = true;
+            
+            // Appeler l'API pour le traitement
+            fetch('/api/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    column: currentColumnName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                loadingTags.classList.add('d-none');
+                loadingSummaries.classList.add('d-none');
                 
-                // Mettre à jour les visualisations
-                updateTagsVisualization(analysisResults);
-                updateSummariesSection(analysisResults);
-                updateDataTableWithTags(analysisResults);
+                if (data.success) {
+                    // Stocker les résultats
+                    analysisResults = data.results;
+                    
+                    // Mettre à jour les visualisations
+                    updateTagsVisualization(analysisResults);
+                    updateSummariesSection(analysisResults);
+                    updateDataTableWithTags(analysisResults);
+                    
+                    // Activer les boutons d'exportation
+                    exportCsvBtn.disabled = false;
+                    exportJsonBtn.disabled = false;
+                    
+                    showAlert('Analyse terminée avec succès', 'success');
+                } else {
+                    showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
+                    
+                    // Afficher les messages "aucun contenu"
+                    noTagsContent.classList.remove('d-none');
+                    noSummariesContent.classList.remove('d-none');
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                loadingTags.classList.add('d-none');
+                loadingSummaries.classList.add('d-none');
                 
-                // Activer les boutons d'exportation
-                exportCsvBtn.disabled = false;
-                exportJsonBtn.disabled = false;
-                
-                showAlert('Analyse terminée avec succès', 'success');
-            } else {
-                showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
+                showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
                 
                 // Afficher les messages "aucun contenu"
                 noTagsContent.classList.remove('d-none');
                 noSummariesContent.classList.remove('d-none');
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            loadingTags.classList.add('d-none');
-            loadingSummaries.classList.add('d-none');
-            
-            showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
-            
-            // Afficher les messages "aucun contenu"
-            noTagsContent.classList.remove('d-none');
-            noSummariesContent.classList.remove('d-none');
+            });
         });
-    });
+    }
     
     // Exportation des résultats
-    exportCsvBtn.addEventListener('click', function() {
-        if (!analysisResults) {
-            showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
-            return;
-        }
-        
-        window.location.href = '/api/export/csv';
-    });
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', function() {
+            if (!analysisResults || analysisResults.length === 0) {
+                showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
+                return;
+            }
+            
+            window.location.href = '/api/export/csv';
+        });
+    }
     
-    exportJsonBtn.addEventListener('click', function() {
-        if (!analysisResults) {
-            showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
-            return;
-        }
-        
-        window.location.href = '/api/export/json';
-    });
+    if (exportJsonBtn) {
+        exportJsonBtn.addEventListener('click', function() {
+            if (!analysisResults || analysisResults.length === 0) {
+                showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
+                return;
+            }
+            
+            window.location.href = '/api/export/json';
+        });
+    }
     
     // Sélection d'un tag pour afficher sa synthèse
-    tagSelector.addEventListener('change', function() {
-        const selectedTag = this.value;
-        
-        if (!selectedTag) {
-            tagSummaryContainer.classList.add('d-none');
-            return;
-        }
-        
-        if (!analysisResults || !analysisResults.summaries[selectedTag]) {
-            showAlert('Données de synthèse non disponibles pour ce tag', 'warning');
-            return;
-        }
-        
-        // Afficher la synthèse du tag sélectionné
-        currentTagName.textContent = selectedTag;
-        tagSummaryContent.innerHTML = formatAnalysis(analysisResults.summaries[selectedTag]);
-        
-        // Afficher les réponses associées à ce tag
-        displayTagResponses(selectedTag, analysisResults.tag_groups[selectedTag]);
-        
-        tagSummaryContainer.classList.remove('d-none');
-    });
+    if (tagSelector) {
+        tagSelector.addEventListener('change', function() {
+            const selectedTag = this.value;
+            
+            if (!selectedTag) {
+                tagSummaryContainer.classList.add('d-none');
+                return;
+            }
+            
+            if (!analysisResults || !analysisResults.summaries[selectedTag]) {
+                showAlert('Données de synthèse non disponibles pour ce tag', 'warning');
+                return;
+            }
+            
+            // Afficher la synthèse du tag sélectionné
+            currentTagName.textContent = selectedTag;
+            tagSummaryContent.innerHTML = formatAnalysis(analysisResults.summaries[selectedTag]);
+            
+            // Afficher les réponses associées à ce tag
+            displayTagResponses(selectedTag, analysisResults.tag_groups[selectedTag]);
+            
+            tagSummaryContainer.classList.remove('d-none');
+        });
+    }
     
     // Sauvegarde de la configuration
-    saveConfigBtn.addEventListener('click', function() {
-        const config = {
-            provider: providerSelect.value,
-            model: modelInput.value,
-            api_key: apiKeyInput.value,
-            endpoint: endpointInput.value
-        };
-        
-        // Envoyer la configuration au serveur
-        fetch('/api/config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(config)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert('Configuration enregistrée avec succès', 'success');
-                // Fermer le modal
-                bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
-            } else {
-                showAlert(`Erreur lors de la sauvegarde: ${data.error}`, 'danger');
-            }
-        })
-        .catch(error => {
-            showAlert(`Erreur lors de la sauvegarde: ${error.message}`, 'danger');
+    if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', function() {
+            const config = {
+                provider: providerSelect.value,
+                model: modelInput.value,
+                api_key: apiKeyInput.value,
+                endpoint: endpointInput.value
+            };
+            
+            // Envoyer la configuration au serveur
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Configuration enregistrée avec succès', 'success');
+                    // Fermer le modal
+                    bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+                } else {
+                    showAlert(`Erreur lors de la sauvegarde: ${data.error}`, 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert(`Erreur lors de la sauvegarde: ${error.message}`, 'danger');
+            });
         });
-    });
+    }
     
     // Gestion du bouton de test
-    console.log("Ajout de l'événement click sur le bouton de test");
     if (testBtn) {
-        console.log("Le bouton de test existe, ajout de l'événement click");
         testBtn.addEventListener('click', async function() {
-            console.log("Clic sur le bouton de test (addEventListener)");
+            showLoading('Test en cours...');
             
             // Afficher une modal pour tester si le clic est bien reçu
             alert("Le bouton a été cliqué!");
@@ -591,8 +615,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 analyzeBtn.disabled = fileInput.files.length === 0;
             }
         });
-    } else {
-        console.error("Le bouton de test n'a pas été trouvé dans le DOM lors de l'ajout de l'événement");
     }
     
     // Supprimer l'ancien gestionnaire d'événements onclick s'il existe
@@ -603,59 +625,47 @@ document.addEventListener('DOMContentLoaded', function() {
         responseForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            // Vérifier que le texte n'est pas vide
-            if (!responseText.value.trim()) {
+            const responseTextValue = responseText ? responseText.value.trim() : '';
+            if (!responseTextValue) {
                 showAlert('Veuillez saisir une réponse à analyser', 'warning');
                 return;
             }
             
-            // Afficher le spinner sur le bouton
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const spinner = submitBtn.querySelector('.spinner-border');
-            const originalBtnText = submitBtn.innerHTML;
+            // Afficher l'indicateur de chargement
+            showLoading('Analyse en cours...');
             
-            spinner.classList.remove('d-none');
-            submitBtn.disabled = true;
+            // Récupérer le prompt personnalisé s'il existe
+            const customPrompt = singlePrompt ? singlePrompt.value.trim() : '';
             
             try {
-                // Envoyer la requête au serveur
-                const response = await fetch('/analyze_single', {
+                // Appeler l'API pour l'analyse
+                const response = await fetch('/api/analyze_single', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        text: responseText.value,
-                        prompt: singlePrompt.value
+                        response: responseTextValue,
+                        custom_prompt: customPrompt
                     })
                 });
                 
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
+                const data = await response.json();
+                hideLoading();
+                
+                if (data.success) {
+                    // Afficher le résultat
+                    if (originalResponse) originalResponse.textContent = responseTextValue;
+                    if (analysisResult) analysisResult.innerHTML = formatJSON(data.analysis);
+                    if (singleResultCard) singleResultCard.classList.remove('d-none');
+                    
+                    showAlert('Analyse terminée avec succès', 'success');
+                } else {
+                    showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
                 }
-                
-                const result = await response.json();
-                
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-                
-                // Afficher les résultats
-                originalResponse.textContent = responseText.value;
-                analysisResult.innerHTML = formatAnalysis(result.analysis);
-                singleResultCard.classList.remove('d-none');
-                
-                // Faire défiler jusqu'aux résultats
-                singleResultCard.scrollIntoView({ behavior: 'smooth' });
-                
             } catch (error) {
-                console.error('Erreur:', error);
+                hideLoading();
                 showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
-                singleResultCard.classList.add('d-none');
-            } finally {
-                // Restaurer le bouton
-                spinner.classList.add('d-none');
-                submitBtn.disabled = false;
             }
         });
     }
@@ -664,34 +674,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Affichage d'un indicateur de chargement global
     function showLoading(message) {
-        // Créer l'élément de chargement
-        const loadingElement = document.createElement('div');
-        loadingElement.id = 'globalLoading';
-        loadingElement.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center';
-        loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        loadingElement.style.zIndex = '9999';
-        
-        // Ajouter le contenu
-        loadingElement.innerHTML = `
-            <div class="bg-white p-4 rounded shadow">
-                <div class="d-flex justify-content-center">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Chargement...</span>
-                    </div>
-                </div>
-                <p class="text-center mt-2">${message}</p>
-            </div>
-        `;
-        
-        // Ajouter à la page
-        document.body.appendChild(loadingElement);
+        const loadingElement = getElement('globalLoading');
+        if (loadingElement) {
+            const loadingText = loadingElement.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.textContent = message || 'Chargement en cours...';
+            }
+            loadingElement.classList.remove('d-none');
+        }
     }
     
     // Masquer l'indicateur de chargement global
     function hideLoading() {
-        const loadingElement = document.getElementById('globalLoading');
+        const loadingElement = getElement('globalLoading');
         if (loadingElement) {
-            loadingElement.parentNode.removeChild(loadingElement);
+            loadingElement.classList.add('d-none');
         }
     }
     
@@ -715,6 +712,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Création du graphique de distribution des tags
     function createTagsChart(results) {
+        // Vérifier si l'élément canvas existe
+        const chartCanvas = getElement('tagsChart');
+        if (!chartCanvas) {
+            console.error("Élément tagsChart non trouvé");
+            return;
+        }
+        
+        const ctx = chartCanvas.getContext('2d');
+        
         // Compter les occurrences de chaque tag
         const tagCounts = {};
         for (const tag in results.tag_groups) {
@@ -732,8 +738,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = topTags.map(tag => tagCounts[tag]);
         
         // Créer ou mettre à jour le graphique
-        const ctx = document.getElementById('tagsChart').getContext('2d');
-        
         if (tagsChart) {
             tagsChart.destroy();
         }
@@ -781,7 +785,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Affichage de la liste des tags normalisés
     function displayNormalizedTags(normalizedTags) {
-        const normalizedTagsList = document.getElementById('normalizedTagsList');
+        const normalizedTagsList = getElement('normalizedTagsList');
+        if (!normalizedTagsList) {
+            console.error("Élément normalizedTagsList non trouvé");
+            return;
+        }
+        
         normalizedTagsList.innerHTML = '';
         
         // Créer une entrée pour chaque tag normalisé
@@ -894,8 +903,19 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Mise à jour du tableau de données
     function updateDataTable(data, responseTags) {
-        const dataTable = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
-        dataTable.innerHTML = '';
+        const dataTable = getElement('dataTable');
+        if (!dataTable) {
+            console.error("Élément dataTable non trouvé");
+            return;
+        }
+        
+        const tbody = dataTable.getElementsByTagName('tbody')[0];
+        if (!tbody) {
+            console.error("Élément tbody non trouvé dans dataTable");
+            return;
+        }
+        
+        tbody.innerHTML = '';
         
         if (!data || data.length === 0) {
             noDataContent.classList.remove('d-none');
@@ -919,7 +939,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('')}</td>
             `;
             
-            dataTable.appendChild(row);
+            tbody.appendChild(row);
         });
         
         dataContent.classList.remove('d-none');
@@ -937,9 +957,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialisation
     function init() {
         // Afficher les sections "aucun contenu" par défaut
-        noTagsContent.classList.remove('d-none');
-        noSummariesContent.classList.remove('d-none');
-        noDataContent.classList.remove('d-none');
+        if (noTagsContent) noTagsContent.classList.remove('d-none');
+        if (noSummariesContent) noSummariesContent.classList.remove('d-none');
+        if (noDataContent) noDataContent.classList.remove('d-none');
+        
+        // Créer l'élément de chargement global s'il n'existe pas
+        if (!getElement('globalLoading')) {
+            const loadingElement = document.createElement('div');
+            loadingElement.id = 'globalLoading';
+            loadingElement.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center d-none';
+            loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            loadingElement.style.zIndex = '9999';
+            
+            // Ajouter le contenu
+            loadingElement.innerHTML = `
+                <div class="bg-white p-4 rounded shadow">
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 loading-text">Chargement en cours...</p>
+                </div>
+            `;
+            
+            // Ajouter à la page
+            document.body.appendChild(loadingElement);
+        }
     }
     
     // Lancer l'initialisation
