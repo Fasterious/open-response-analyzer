@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyseur de Réponses Ouvertes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <i class="bi bi-chat-dots-fill me-2"></i>
+                    Analyseur de Réponses Ouvertes
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal">
+                                <i class="bi bi-gear-fill"></i> Configuration
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="row">
+            <!-- Panneau latéral gauche pour l'importation -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Importation</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Fichier de données</label>
+                                <input type="file" class="form-control" id="file" name="file" accept=".csv,.json,.txt">
+                                <div class="form-text">Formats acceptés: CSV, JSON, TXT</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Importer</button>
+                        </form>
+                        
+                        <hr>
+                        
+                        <div id="fileInfo" class="d-none">
+                            <h6>Aperçu des données</h6>
+                            <p><strong>Nombre de lignes:</strong> <span id="rowCount">0</span></p>
+                            <p><strong>Colonnes:</strong> <span id="columnList">-</span></p>
+                            
+                            <div id="columnSelectContainer" class="mb-3 d-none">
+                                <label for="columnSelect" class="form-label">Colonne à analyser</label>
+                                <select class="form-select" id="columnSelect">
+                                    <!-- Options générées dynamiquement -->
+                                </select>
+                            </div>
+                            
+                            <button id="processBtn" class="btn btn-success">Analyser les réponses</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title">Exportation</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Exporter les résultats d'analyse</p>
+                        <div class="d-grid gap-2">
+                            <button id="exportCsvBtn" class="btn btn-outline-primary" disabled>CSV</button>
+                            <button id="exportJsonBtn" class="btn btn-outline-primary" disabled>JSON</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Panneau principal pour les résultats -->
+            <div class="col-md-9">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="resultTabs">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#tagsTab">Tags</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#summariesTab">Synthèses</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#dataTab">Données</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content">
+                            <!-- Onglet Tags -->
+                            <div class="tab-pane active" id="tagsTab">
+                                <div id="loadingTags" class="d-none">
+                                    <div class="d-flex justify-content-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
+                                        </div>
+                                    </div>
+                                    <p class="text-center mt-2">Analyse des tags en cours...</p>
+                                </div>
+                                
+                                <div id="tagsContent" class="d-none">
+                                    <div class="row mb-4">
+                                        <div class="col-md-6">
+                                            <div class="card h-100">
+                                                <div class="card-header">
+                                                    <h6 class="card-title">Distribution des tags</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <canvas id="tagsChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card h-100">
+                                                <div class="card-header">
+                                                    <h6 class="card-title">Tags normalisés</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div id="normalizedTagsList" class="list-group">
+                                                        <!-- Liste générée dynamiquement -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="noTagsContent" class="text-center d-none">
+                                    <p class="text-muted">Importez et analysez un fichier pour voir les tags extraits</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Onglet Synthèses -->
+                            <div class="tab-pane" id="summariesTab">
+                                <div id="loadingSummaries" class="d-none">
+                                    <div class="d-flex justify-content-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
+                                        </div>
+                                    </div>
+                                    <p class="text-center mt-2">Génération des synthèses en cours...</p>
+                                </div>
+                                
+                                <div id="summariesContent" class="d-none">
+                                    <div class="mb-3">
+                                        <select class="form-select" id="tagSelector">
+                                            <option value="">Sélectionnez un tag...</option>
+                                            <!-- Options générées dynamiquement -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div id="tagSummaryContainer" class="d-none">
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                <h6 class="card-title">Synthèse du tag: <span id="currentTagName"></span></h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div id="tagSummaryContent"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="card-title">Réponses associées</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div id="tagResponsesList" class="list-group">
+                                                    <!-- Liste générée dynamiquement -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="noSummariesContent" class="text-center d-none">
+                                    <p class="text-muted">Importez et analysez un fichier pour voir les synthèses</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Onglet Données -->
+                            <div class="tab-pane" id="dataTab">
+                                <div id="dataContent" class="d-none">
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover" id="dataTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Réponse</th>
+                                                    <th>Tags</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- Données générées dynamiquement -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                
+                                <div id="noDataContent" class="text-center d-none">
+                                    <p class="text-muted">Importez un fichier pour voir les données</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Configuration -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Configuration du LLM</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="configForm">
+                        <div class="mb-3">
+                            <label for="provider" class="form-label">Fournisseur</label>
+                            <select class="form-select" id="provider">
+                                <option value="mistral" {% if config.provider == 'mistral' %}selected{% endif %}>Mistral AI</option>
+                                <option value="openai" {% if config.provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                                <option value="anthropic" {% if config.provider == 'anthropic' %}selected{% endif %}>Anthropic</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="model" class="form-label">Modèle</label>
+                            <input type="text" class="form-control" id="model" value="{{ config.model }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="apiKey" class="form-label">Clé API</label>
+                            <input type="password" class="form-control" id="apiKey" value="{{ config.api_key }}">
+                            <div class="form-text">Votre clé API est stockée localement uniquement</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="endpoint" class="form-label">Point d'accès API</label>
+                            <input type="text" class="form-control" id="endpoint" value="{{ config.endpoint }}">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveConfigBtn">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0">Analyser des réponses ouvertes</h2>
+                    </div>
+                    <div class="card-body">
+                        <form id="responseForm">
+                            <div class="mb-3">
+                                <label for="responseText" class="form-label">Réponse à analyser:</label>
+                                <textarea class="form-control" id="responseText" rows="4" placeholder="Saisissez la réponse de l'utilisateur ici..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="customPrompt" class="form-label">Prompt personnalisé (optionnel):</label>
+                                <textarea class="form-control" id="customPrompt" rows="3" placeholder="Laissez vide pour utiliser le prompt par défaut"></textarea>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Analyser avec Mistral</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mt-4 d-none" id="resultsCard">
+                    <div class="card-header bg-success text-white">
+                        <h3 class="mb-0">Résultats de l'analyse</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h4>Réponse originale:</h4>
+                            <p id="originalResponse" class="p-3 bg-light"></p>
+                        </div>
+                        <div>
+                            <h4>Analyse:</h4>
+                            <pre id="analysisResult" class="p-3 bg-light"></pre>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted">
+                        Modèle utilisé: <span id="modelUsed"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+    document.getElementById('responseForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const responseText = document.getElementById('responseText').value;
+        const customPrompt = document.getElementById('customPrompt').value;
+        
+        if (!responseText.trim()) {
+            alert('Veuillez saisir une réponse à analyser');
+            return;
+        }
+        
+        try {
+            // Afficher un indicateur de chargement
+            document.querySelector('button[type="submit"]').innerHTML = 
+                '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyse en cours...';
+            document.querySelector('button[type="submit"]').disabled = true;
+            
+            // Appel API
+            const response = await fetch('/analyze_response', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    response_text: responseText,
+                    custom_prompt: customPrompt || null
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Erreur lors de l\'analyse');
+            }
+            
+            const data = await response.json();
+            
+            // Afficher les résultats
+            document.getElementById('originalResponse').textContent = data.original_response;
+            document.getElementById('analysisResult').innerHTML = '<pre style="white-space: pre-wrap; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">' + JSON.stringify(data.analysis, null, 2) + '</pre>';
+            document.getElementById('modelUsed').textContent = data.model_used;
+            document.getElementById('resultsCard').classList.remove('d-none');
+            
+            // Réinitialiser le bouton
+            document.querySelector('button[type="submit"]').innerHTML = 'Analyser avec Mistral';
+            document.querySelector('button[type="submit"]').disabled = false;
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('Une erreur est survenue: ' + error.message);
+            
+            // Réinitialiser le bouton
+            document.querySelector('button[type="submit"]').innerHTML = 'Analyser avec Mistral';
+            document.querySelector('button[type="submit"]').disabled = false;
+        }
+    });
+    </script>
+</body>
+</html> 
