@@ -61,6 +61,10 @@ MISTRAL_MODEL = "mistral-large-latest"  # Options: mistral-small-latest, mistral
 def index():
     return render_template('index.html', config=config)
 
+@app.route('/test')
+def test():
+    return render_template('test.html')
+
 @app.route('/api/config', methods=['GET', 'POST'])
 def handle_config():
     global config
@@ -611,23 +615,70 @@ def analyze_with_mistral(response_text, prompt_template=None):
         # En cas d'erreur, renvoyer des informations sur l'erreur
         return {"error": str(e), "error_type": type(e).__name__}
 
-@app.route('/analyze_response', methods=['POST'])
-def analyze_endpoint():
-    data = request.json
-    response_text = data.get('response_text', '')
-    custom_prompt = data.get('custom_prompt', None)
-    
-    if not response_text:
-        return jsonify({"error": "No response text provided"}), 400
-    
-    # Analyse avec Mistral
-    analysis_result = analyze_with_mistral(response_text, custom_prompt)
-    
-    return jsonify({
-        "original_response": response_text,
-        "analysis": analysis_result,
-        "model_used": MISTRAL_MODEL
-    })
+@app.route('/analyze_single', methods=['POST'])
+def analyze_single():
+    try:
+        data = request.get_json()
+        if not data or 'response_text' not in data:
+            return jsonify({'error': 'Réponse manquante'}), 400
+
+        response_text = data['response_text']
+        custom_prompt = data.get('custom_prompt')
+
+        # Analyser la réponse avec Mistral
+        result = analyze_with_mistral(response_text, custom_prompt)
+
+        return jsonify({
+            'original_response': response_text,
+            'analysis': result
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'analyse: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/test_workflow', methods=['POST'])
+def test_workflow():
+    logger.info("Route /test_workflow appelée")
+    try:
+        # Charger le fichier example_data.csv
+        example_file = 'example_data.csv'
+        logger.info(f"Vérification de l'existence du fichier {example_file}")
+        if not os.path.exists(example_file):
+            logger.error("Fichier example_data.csv non trouvé")
+            return jsonify({'error': 'Fichier de test non trouvé'}), 404
+
+        # Lire le fichier CSV
+        logger.info("Lecture du fichier CSV")
+        df = pd.read_csv(example_file)
+        logger.info(f"Fichier CSV lu avec succès, {len(df)} lignes trouvées")
+        
+        # Limiter à 3 lignes pour les tests
+        df = df.head(3)
+        logger.info(f"Limitation à 3 lignes pour le test")
+        
+        # Analyser les réponses du fichier d'exemple
+        results = []
+        for index, row in df.iterrows():
+            logger.info(f"Analyse de la réponse {index+1}/{len(df)}: {row['response'][:50]}...")
+            analysis = analyze_with_mistral(row['response'])
+            results.append({
+                'id': int(row['id']),
+                'response': row['response'],
+                'analysis': analysis
+            })
+        
+        logger.info(f"Analyse terminée pour {len(results)} réponses")
+
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors du test: {str(e)}")
+        logger.exception("Détail de l'erreur:")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002) 

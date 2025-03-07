@@ -6,7 +6,7 @@
     <title>Analyseur de Réponses Ouvertes</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
 </head>
 <body>
@@ -58,6 +58,10 @@
                                 <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
                                 Analyser avec Mistral
                             </button>
+                            <button type="button" class="btn btn-outline-secondary w-100 mt-2" id="testBtn" onclick="testWorkflow()">
+                                <i class="bi bi-lightning-fill me-2"></i>
+                                Tester avec données d'exemple
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -71,11 +75,11 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <button class="btn btn-outline-primary" onclick="exportResults('csv')">
+                            <button class="btn btn-outline-primary" id="exportCsvBtn" onclick="exportResults('csv')" disabled>
                                 <i class="bi bi-file-earmark-spreadsheet me-2"></i>
                                 Exporter en CSV
                             </button>
-                            <button class="btn btn-outline-primary" onclick="exportResults('json')">
+                            <button class="btn btn-outline-primary" id="exportJsonBtn" onclick="exportResults('json')" disabled>
                                 <i class="bi bi-file-earmark-code me-2"></i>
                                 Exporter en JSON
                             </button>
@@ -210,197 +214,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script>
-        // Gestion du drag & drop
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('file');
-        const analyzeBtn = document.getElementById('analyzeBtn');
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
-
-        dropZone.addEventListener('drop', handleDrop, false);
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        function highlight(e) {
-            dropZone.classList.add('dragover');
-        }
-
-        function unhighlight(e) {
-            dropZone.classList.remove('dragover');
-        }
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            fileInput.files = files;
-            updateAnalyzeButton();
-        }
-
-        fileInput.addEventListener('change', updateAnalyzeButton);
-
-        function updateAnalyzeButton() {
-            analyzeBtn.disabled = !fileInput.files.length;
-        }
-
-        // Gestion du formulaire
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            
-            const customPrompt = document.getElementById('customPrompt').value;
-            if (customPrompt) {
-                formData.append('custom_prompt', customPrompt);
-            }
-
-            // Afficher le spinner
-            const spinner = analyzeBtn.querySelector('.spinner-border');
-            spinner.classList.remove('d-none');
-            analyzeBtn.disabled = true;
-
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error('Erreur lors de l\'analyse');
-                }
-
-                const result = await response.json();
-                displayResults(result);
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('Une erreur est survenue lors de l\'analyse');
-            } finally {
-                // Cacher le spinner
-                spinner.classList.add('d-none');
-                analyzeBtn.disabled = false;
-            }
-        });
-
-        function displayResults(data) {
-            // Afficher les tags
-            const tagsContent = document.getElementById('tagsContent');
-            if (data.tags && data.tags.length) {
-                tagsContent.innerHTML = data.tags.map(tag => 
-                    `<span class="tag">${tag}</span>`
-                ).join('');
-            }
-
-            // Afficher la synthèse
-            const synthesisContent = document.getElementById('synthesisContent');
-            if (data.synthesis) {
-                synthesisContent.innerHTML = `<p>${data.synthesis}</p>`;
-            }
-
-            // Afficher les données
-            const dataContent = document.getElementById('dataContent');
-            if (data.raw_data) {
-                dataContent.innerHTML = `<pre class="mb-0"><code>${JSON.stringify(data.raw_data, null, 2)}</code></pre>`;
-            }
-
-            // Animer l'apparition des résultats
-            document.querySelectorAll('.results-section').forEach(section => {
-                section.classList.add('visible');
-            });
-        }
-
-        function exportResults(format) {
-            window.location.href = `/export/${format}`;
-        }
-
-        function saveConfig() {
-            // Sauvegarder la configuration
-            const modal = bootstrap.Modal.getInstance(document.getElementById('configModal'));
-            modal.hide();
-        }
-
-        function formatJSON(obj) {
-            const jsonString = JSON.stringify(obj, null, 2);
-            return jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
-                let cls = 'json-string';
-                if (/^"/.test(match)) {
-                    if (/:$/.test(match)) {
-                        cls = 'json-key';
-                    }
-                } else if (/true|false/.test(match)) {
-                    cls = 'json-boolean';
-                } else if (/null/.test(match)) {
-                    cls = 'json-null';
-                } else {
-                    cls = 'json-number';
-                }
-                return '<span class="' + cls + '">' + match + '</span>';
-            });
-        }
-
-        // Gestion de l'analyse individuelle
-        document.getElementById('responseForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const responseText = document.getElementById('responseText').value;
-            const customPrompt = document.getElementById('singlePrompt').value;
-            
-            if (!responseText.trim()) {
-                alert('Veuillez saisir une réponse à analyser');
-                return;
-            }
-            
-            // Afficher le spinner
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const spinner = submitBtn.querySelector('.spinner-border');
-            spinner.classList.remove('d-none');
-            submitBtn.disabled = true;
-            
-            try {
-                const response = await fetch('/analyze_single', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        response_text: responseText,
-                        custom_prompt: customPrompt || null
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Erreur lors de l\'analyse');
-                }
-                
-                const data = await response.json();
-                
-                // Afficher les résultats
-                document.getElementById('originalResponse').textContent = data.original_response;
-                document.getElementById('analysisResult').innerHTML = `<div class="json-view">${formatJSON(data.analysis)}</div>`;
-                document.getElementById('singleResultCard').classList.remove('d-none');
-                
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('Une erreur est survenue lors de l\'analyse');
-            } finally {
-                // Cacher le spinner
-                spinner.classList.add('d-none');
-                submitBtn.disabled = false;
-            }
-        });
-    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html> 
