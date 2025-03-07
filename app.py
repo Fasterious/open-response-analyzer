@@ -44,8 +44,15 @@ except Exception as e:
     logger.error(f"Erreur lors du chargement de la configuration: {e}")
 
 # Configuration Mistral
-# Priorité: variables d'environnement > config.json
-MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY") or config.get("api_key", "")
+# Vérifier si la valeur dans config.json est une référence à la variable d'environnement
+api_key_config = config.get("api_key", "")
+if api_key_config == "ENV_MISTRAL_API_KEY":
+    # Si c'est une référence, utiliser la variable d'environnement
+    MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
+else:
+    # Sinon, utiliser la valeur de config.json
+    MISTRAL_API_KEY = api_key_config
+
 mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
 MISTRAL_MODEL = "mistral-large-latest"  # Options: mistral-small-latest, mistral-medium-latest, mistral-large-latest
 
