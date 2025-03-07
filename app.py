@@ -657,15 +657,32 @@ def test_workflow():
         df = df.head(3)
         logger.info(f"Limitation à 3 lignes pour le test")
         
+        # Extraire les réponses pour l'extraction des tags
+        responses = df['response'].tolist()
+        
+        # Étape 1: Extraction des tags
+        logger.info("Extraction des tags à partir des réponses")
+        response_tags = extract_tags_with_mistral(responses)
+        logger.info(f"Tags extraits: {response_tags}")
+        
         # Analyser les réponses du fichier d'exemple
         results = []
         for index, row in df.iterrows():
             logger.info(f"Analyse de la réponse {index+1}/{len(df)}: {row['response'][:50]}...")
             analysis = analyze_with_mistral(row['response'])
+            
+            # Trouver les tags correspondant à cette réponse
+            tags_for_response = []
+            for tag_item in response_tags:
+                if tag_item.get('response_id') == index + 1:
+                    tags_for_response = tag_item.get('tags', [])
+                    break
+            
             results.append({
                 'id': int(row['id']),
                 'response': row['response'],
-                'analysis': analysis
+                'analysis': analysis,
+                'tags': tags_for_response
             })
         
         logger.info(f"Analyse terminée pour {len(results)} réponses")
@@ -679,6 +696,82 @@ def test_workflow():
         logger.error(f"Erreur lors du test: {str(e)}")
         logger.exception("Détail de l'erreur:")
         return jsonify({'error': str(e)}), 500
+
+def extract_tags_with_mistral(responses):
+    """
+    Extrait les tags des réponses en utilisant Mistral AI.
+    
+    Args:
+        responses (list): Liste des réponses à analyser
+    
+    Returns:
+        list: Liste des tags extraits pour chaque réponse
+    """
+    # Construire le prompt
+    prompt = """
+    Analyse les réponses suivantes et extrait les concepts clés (tags) présents dans chacune. 
+    Pour chaque réponse, identifie 2 à 5 tags qui représentent les idées principales.
+    
+    Réponses à analyser:
+    """
+    
+    for i, response in enumerate(responses):
+        prompt += f"\n{i+1}. {response}"
+    
+    prompt += """
+    
+    Pour chaque réponse, retourne les tags identifiés dans un format JSON structuré comme ceci:
+    [
+        {
+            "response_id": 1,
+            "tags": ["tag1", "tag2", "tag3"]
+        },
+        {
+            "response_id": 2,
+            "tags": ["tag4", "tag5"]
+        }
+    ]
+    
+    Retourne uniquement le tableau JSON, sans autre texte explicatif.
+    """
+    
+    # Structure pour l'API Mistral
+    messages = [
+        ChatMessage(role="system", content="Vous êtes un analyste expert qui extrait des tags pertinents à partir de réponses utilisateur."),
+        ChatMessage(role="user", content=prompt)
+    ]
+    
+    try:
+        chat_response = mistral_client.chat(
+            model=MISTRAL_MODEL,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=1024
+        )
+        
+        content = chat_response.choices[0].message.content
+        
+        # Essayer de parser le contenu comme JSON
+        try:
+            result = json.loads(content)
+            return result
+        except json.JSONDecodeError:
+            # Si ce n'est pas un JSON valide, essayer d'extraire avec regex
+            import re
+            match = re.search(r'\[(.*)\]', content, re.DOTALL)
+            if match:
+                try:
+                    result = json.loads(f"[{match.group(1)}]")
+                    return result
+                except:
+                    logger.warning(f"Impossible d'extraire les tags: {content}")
+                    return []
+            else:
+                logger.warning(f"Format de réponse incorrect pour les tags: {content}")
+                return []
+    except Exception as e:
+        logger.error(f"Erreur lors de l'extraction des tags: {str(e)}")
+        return []
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002) 

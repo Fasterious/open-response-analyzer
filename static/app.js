@@ -22,6 +22,7 @@ function displayResults(data) {
                     <tr>
                         <th>ID</th>
                         <th>Réponse</th>
+                        <th>Tags</th>
                         <th>Analyse</th>
                     </tr>
                 </thead>
@@ -30,6 +31,7 @@ function displayResults(data) {
                         <tr>
                             <td>${result.id}</td>
                             <td>${escapeHtml(result.response)}</td>
+                            <td>${formatTags(result.tags || [])}</td>
                             <td>${formatAnalysis(result.analysis)}</td>
                         </tr>
                     `).join('')}
@@ -43,6 +45,9 @@ function displayResults(data) {
     if (noDataContent) {
         noDataContent.style.display = 'none';
     }
+
+    // Afficher les tags dans l'onglet "Tags"
+    displayTagsFromResults(data.results);
 
     // Activer les boutons d'exportation
     const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -104,7 +109,7 @@ function escapeHtml(text) {
 }
 
 // Fonction globale pour le test avec données d'exemple
-function testWorkflow() {
+async function testWorkflow() {
     console.log("Fonction testWorkflow appelée");
     
     // Récupérer le bouton de test
@@ -132,36 +137,39 @@ function testWorkflow() {
     const analyzeBtn = document.getElementById('analyzeBtn');
     if (analyzeBtn) analyzeBtn.disabled = true;
 
-    // Envoyer la requête au serveur
-    fetch('/test_workflow', {
-        method: 'POST'
-    })
-    .then(response => {
-        console.log("Réponse reçue:", response.status);
+    // Afficher un message de chargement plus informatif
+    showLoading("Analyse des données d'exemple en cours...");
+
+    try {
+        console.log("Envoi de la requête test_workflow");
+        const response = await fetch('/test_workflow', {
+            method: 'POST'
+        });
+
+        console.log("Réponse reçue du serveur:", response.status);
+        
         if (!response.ok) {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
-        return response.json();
-    })
-    .then(result => {
-        console.log("Données reçues:", result);
+
+        const result = await response.json();
+        console.log("Données JSON reçues:", result);
+        
         if (result.error) {
             throw new Error(result.error);
         }
         
-        try {
-            displayResults(result);
-            showAlert(`Test effectué avec succès ! ${result.results.length} réponses analysées.`, 'success');
-        } catch (err) {
-            console.error("Erreur lors de l'affichage des résultats:", err);
-            showAlert("Les données ont été reçues mais une erreur s'est produite lors de leur affichage.", "warning");
-        }
-    })
-    .catch(error => {
-        console.error("Erreur:", error);
+        // Masquer le message de chargement
+        hideLoading();
+        
+        displayResults(result);
+        showAlert(`Test effectué avec succès ! ${result.results.length} réponses analysées.`, 'success');
+    } catch (error) {
+        console.error('Erreur détaillée:', error);
+        // Masquer le message de chargement en cas d'erreur
+        hideLoading();
         showAlert(`Erreur lors du test: ${error.message}`, 'danger');
-    })
-    .finally(() => {
+    } finally {
         // Restaurer le bouton
         if (testBtn) {
             testBtn.innerHTML = originalContent;
@@ -175,7 +183,7 @@ function testWorkflow() {
                 analyzeBtn.disabled = fileInput.files.length === 0;
             }
         }
-    });
+    }
 }
 
 // Fonction pour formater l'analyse en texte structuré lisible
@@ -245,6 +253,182 @@ function formatAnalysis(analysis) {
     }
     
     return formattedText;
+}
+
+// Fonction pour formater les tags
+function formatTags(tags) {
+    if (!tags || tags.length === 0) {
+        return '<span class="text-muted">Aucun tag</span>';
+    }
+    
+    return tags.map(tag => 
+        `<span class="badge bg-primary me-1">${escapeHtml(tag)}</span>`
+    ).join(' ');
+}
+
+// Fonction pour afficher les tags extraits dans l'onglet "Tags"
+function displayTagsFromResults(results) {
+    const tagsContent = document.getElementById('tagsContent');
+    if (!tagsContent) {
+        console.error("Élément tagsContent non trouvé");
+        return;
+    }
+    
+    // Collecter tous les tags uniques
+    const allTags = {};
+    results.forEach(result => {
+        if (result.tags && result.tags.length > 0) {
+            result.tags.forEach(tag => {
+                if (!allTags[tag]) {
+                    allTags[tag] = 0;
+                }
+                allTags[tag]++;
+            });
+        }
+    });
+    
+    // Si aucun tag n'a été trouvé
+    if (Object.keys(allTags).length === 0) {
+        const noTagsContent = document.getElementById('noTagsContent');
+        if (noTagsContent) {
+            noTagsContent.classList.remove('d-none');
+        }
+        return;
+    }
+    
+    // Trier les tags par fréquence (décroissant)
+    const sortedTags = Object.keys(allTags).sort((a, b) => allTags[b] - allTags[a]);
+    
+    // Créer le contenu HTML
+    let tagsHtml = `
+        <h4 class="mb-4">Tags extraits (${Object.keys(allTags).length})</h4>
+        <div class="mb-4">
+            <canvas id="tagsChart" width="400" height="200"></canvas>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Distribution des tags</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            ${sortedTags.map(tag => `
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>${escapeHtml(tag)}</span>
+                                    <span class="badge bg-primary rounded-pill">${allTags[tag]}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Réponses par tag</h5>
+                    </div>
+                    <div class="card-body">
+                        <select class="form-select mb-3" id="tagSelector">
+                            <option value="">Sélectionnez un tag</option>
+                            ${sortedTags.map(tag => `
+                                <option value="${escapeHtml(tag)}">${escapeHtml(tag)} (${allTags[tag]})</option>
+                            `).join('')}
+                        </select>
+                        <div id="tagSummaryContainer" class="d-none">
+                            <h6 id="currentTagName" class="mb-2"></h6>
+                            <div id="tagSummaryContent" class="mb-3"></div>
+                            <div id="tagResponsesList" class="list-group"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Mettre à jour le contenu
+    tagsContent.innerHTML = tagsHtml;
+    
+    // Masquer le message "pas de tags"
+    const noTagsContent = document.getElementById('noTagsContent');
+    if (noTagsContent) {
+        noTagsContent.classList.add('d-none');
+    }
+    
+    // Afficher la section des tags
+    tagsContent.classList.remove('d-none');
+    
+    // Créer le graphique
+    const chartCanvas = document.getElementById('tagsChart');
+    if (chartCanvas) {
+        const ctx = chartCanvas.getContext('2d');
+        
+        // Limiter à 10 tags maximum pour la lisibilité
+        const topTags = sortedTags.slice(0, 10);
+        const tagValues = topTags.map(tag => allTags[tag]);
+        
+        // Créer le graphique
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: topTags,
+                datasets: [{
+                    label: 'Nombre d\'occurrences',
+                    data: tagValues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Ajouter l'événement pour afficher les réponses par tag
+    const tagSelector = document.getElementById('tagSelector');
+    if (tagSelector) {
+        tagSelector.addEventListener('change', function() {
+            const selectedTag = this.value;
+            if (!selectedTag) {
+                return;
+            }
+            
+            // Trouver toutes les réponses avec ce tag
+            const responsesWithTag = results.filter(result => 
+                result.tags && result.tags.includes(selectedTag)
+            );
+            
+            // Afficher les réponses
+            const tagSummaryContainer = document.getElementById('tagSummaryContainer');
+            const currentTagName = document.getElementById('currentTagName');
+            const tagResponsesList = document.getElementById('tagResponsesList');
+            
+            if (tagSummaryContainer && currentTagName && tagResponsesList) {
+                currentTagName.textContent = `Tag: ${selectedTag} (${responsesWithTag.length} réponses)`;
+                
+                tagResponsesList.innerHTML = responsesWithTag.map(result => `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-secondary">ID: ${result.id}</span>
+                        </div>
+                        <p class="mb-1">${escapeHtml(result.response)}</p>
+                    </div>
+                `).join('');
+                
+                tagSummaryContainer.classList.remove('d-none');
+            }
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

@@ -155,30 +155,45 @@
                     <div class="tab-pane fade show active" id="tags" role="tabpanel">
                         <div class="card">
                             <div class="card-body" id="tagsContent">
-                                <div class="text-center text-muted py-5">
-                                    <i class="bi bi-cloud-upload display-1 mb-3"></i>
-                                    <h5>Importez et analysez un fichier pour voir les tags extraits</h5>
+                                <!-- Le contenu des tags sera inséré ici par JavaScript -->
+                            </div>
+                            <div id="noTagsContent" class="text-center text-muted py-5">
+                                <i class="bi bi-cloud-upload display-1 mb-3"></i>
+                                <h5>Importez et analysez un fichier pour voir les tags extraits</h5>
+                            </div>
+                            <div id="loadingTags" class="text-center py-5 d-none">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Chargement...</span>
                                 </div>
+                                <h5>Extraction des tags en cours...</h5>
                             </div>
                         </div>
                     </div>
                     <div class="tab-pane fade" id="synthesis" role="tabpanel">
                         <div class="card">
                             <div class="card-body" id="synthesisContent">
-                                <div class="text-center text-muted py-5">
-                                    <i class="bi bi-journal-text display-1 mb-3"></i>
-                                    <h5>Les synthèses apparaîtront ici après l'analyse</h5>
+                                <!-- Le contenu des synthèses sera inséré ici par JavaScript -->
+                            </div>
+                            <div id="noSummariesContent" class="text-center text-muted py-5">
+                                <i class="bi bi-journal-text display-1 mb-3"></i>
+                                <h5>Les synthèses apparaîtront ici après l'analyse</h5>
+                            </div>
+                            <div id="loadingSummaries" class="text-center py-5 d-none">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Chargement...</span>
                                 </div>
+                                <h5>Génération des synthèses en cours...</h5>
                             </div>
                         </div>
                     </div>
                     <div class="tab-pane fade" id="data" role="tabpanel">
                         <div class="card">
                             <div class="card-body" id="dataContent">
-                                <div class="text-center text-muted py-5">
-                                    <i class="bi bi-table display-1 mb-3"></i>
-                                    <h5>Les données brutes apparaîtront ici après l'analyse</h5>
-                                </div>
+                                <!-- Le contenu des données sera inséré ici par JavaScript -->
+                            </div>
+                            <div id="noDataContent" class="text-center text-muted py-5">
+                                <i class="bi bi-table display-1 mb-3"></i>
+                                <h5>Les données brutes apparaîtront ici après l'analyse</h5>
                             </div>
                         </div>
                     </div>
