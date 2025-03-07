@@ -665,6 +665,33 @@ def test_workflow():
         response_tags = extract_tags_with_mistral(responses)
         logger.info(f"Tags extraits: {response_tags}")
         
+        # Préparer les résultats sans analyse
+        results = []
+        for index, row in df.iterrows():
+            logger.info(f"Préparation de la réponse {index+1}/{len(df)}: {row['response'][:50]}...")
+            
+            # Trouver les tags correspondant à cette réponse
+            tags_for_response = []
+            for tag_item in response_tags:
+                if tag_item.get('response_id') == index + 1:
+                    tags_for_response = tag_item.get('tags', [])
+                    break
+            
+            # Ajouter la réponse aux résultats sans analyse
+            results.append({
+                'id': int(row['id']),
+                'response': row['response'],
+                'analysis': {
+                    "message": "Analyse désactivée temporairement",
+                    "note": "Le code d'analyse est conservé mais n'est pas exécuté pour le moment"
+                },
+                'tags': tags_for_response
+            })
+        
+        logger.info(f"Préparation terminée pour {len(results)} réponses")
+
+        # Code d'analyse commenté mais conservé
+        """
         # Analyser les réponses du fichier d'exemple
         results = []
         for index, row in df.iterrows():
@@ -686,6 +713,7 @@ def test_workflow():
             })
         
         logger.info(f"Analyse terminée pour {len(results)} réponses")
+        """
 
         return jsonify({
             'success': True,
