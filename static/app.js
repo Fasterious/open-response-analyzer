@@ -22,7 +22,8 @@ function displayResults(data) {
                     <tr>
                         <th>ID</th>
                         <th>Réponse</th>
-                        <th>Tags</th>
+                        <th>Tags Originaux</th>
+                        <th>Tags Normalisés</th>
                         <th>Analyse</th>
                     </tr>
                 </thead>
@@ -31,12 +32,19 @@ function displayResults(data) {
                         <tr>
                             <td>${result.id}</td>
                             <td>${escapeHtml(result.response)}</td>
-                            <td>${formatTags(result.tags || [])}</td>
+                            <td>${formatTags(result.original_tags || [])}</td>
+                            <td>${formatTags(result.normalized_tags || [], 'bg-success')}</td>
                             <td>${formatAnalysis(result.analysis)}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
+        </div>
+        
+        <div class="text-center mt-4">
+            <button class="btn btn-success" onclick="showSynthesisTab()">
+                <i class="bi bi-journal-text me-2"></i>Voir les synthèses
+            </button>
         </div>
     `;
 
@@ -47,7 +55,10 @@ function displayResults(data) {
     }
 
     // Afficher les tags dans l'onglet "Tags"
-    displayTagsFromResults(data.results);
+    displayTagsFromResults(data.results, data.tag_mapping, data.tag_summaries);
+    
+    // Afficher les synthèses dans l'onglet "Synthèses"
+    displaySynthesesFromResults(data.tag_summaries);
 
     // Activer les boutons d'exportation
     const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -56,11 +67,16 @@ function displayResults(data) {
     if (exportCsvBtn) exportCsvBtn.disabled = false;
     if (exportJsonBtn) exportJsonBtn.disabled = false;
     
-    // Basculer vers l'onglet "Données"
-    const dataTab = document.getElementById('data-tab');
-    if (dataTab) {
-        const tabInstance = new bootstrap.Tab(dataTab);
-        tabInstance.show();
+    // Basculer vers l'onglet "Synthèses" si des synthèses sont disponibles
+    if (data.tag_summaries && Object.keys(data.tag_summaries).length > 0) {
+        showSynthesisTab();
+    } else {
+        // Sinon, basculer vers l'onglet "Données"
+        const dataTab = document.getElementById('data-tab');
+        if (dataTab) {
+            const tabInstance = new bootstrap.Tab(dataTab);
+            tabInstance.show();
+        }
     }
 }
 
@@ -256,39 +272,89 @@ function formatAnalysis(analysis) {
 }
 
 // Fonction pour formater les tags
-function formatTags(tags) {
+function formatTags(tags, bgClass = 'bg-primary') {
     if (!tags || tags.length === 0) {
         return '<span class="text-muted">Aucun tag</span>';
     }
     
     return tags.map(tag => 
-        `<span class="badge bg-primary me-1">${escapeHtml(tag)}</span>`
+        `<span class="badge ${bgClass} me-1">${escapeHtml(tag)}</span>`
     ).join(' ');
 }
 
+// Fonction pour formater les synthèses des tags
+function formatTagSummaries(tagSummaries) {
+    if (!tagSummaries || Object.keys(tagSummaries).length === 0) {
+        return '<span class="text-muted">Aucune synthèse disponible</span>';
+    }
+    
+    let html = '<div class="tag-summaries">';
+    
+    for (const [tag, summary] of Object.entries(tagSummaries)) {
+        html += `
+            <div class="card mb-2">
+                <div class="card-header py-1 bg-light">
+                    <span class="badge bg-success">${escapeHtml(tag)}</span>
+                    <span class="badge bg-secondary ms-1">${summary.nombre_utilisateurs} utilisateur(s)</span>
+                </div>
+                <div class="card-body py-2">
+                    <p class="mb-1"><small>${escapeHtml(summary.synthèse)}</small></p>
+                    ${summary.verbatims && summary.verbatims.length > 0 ? 
+                        `<div class="verbatims">
+                            <small class="text-muted">Verbatims:</small>
+                            <ul class="mb-0">
+                                ${summary.verbatims.map(verbatim => 
+                                    `<li><small><em>"${escapeHtml(verbatim)}"</em></small></li>`
+                                ).join('')}
+                            </ul>
+                        </div>` : 
+                        ''
+                    }
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
 // Fonction pour afficher les tags extraits dans l'onglet "Tags"
-function displayTagsFromResults(results) {
+function displayTagsFromResults(results, tagMapping = null, tagSummaries = null) {
     const tagsContent = document.getElementById('tagsContent');
     if (!tagsContent) {
         console.error("Élément tagsContent non trouvé");
         return;
     }
     
-    // Collecter tous les tags uniques
-    const allTags = {};
+    // Collecter tous les tags uniques (originaux et normalisés)
+    const originalTags = {};
+    const normalizedTags = {};
+    
     results.forEach(result => {
-        if (result.tags && result.tags.length > 0) {
-            result.tags.forEach(tag => {
-                if (!allTags[tag]) {
-                    allTags[tag] = 0;
+        // Traiter les tags originaux
+        if (result.original_tags && result.original_tags.length > 0) {
+            result.original_tags.forEach(tag => {
+                if (!originalTags[tag]) {
+                    originalTags[tag] = 0;
                 }
-                allTags[tag]++;
+                originalTags[tag]++;
+            });
+        }
+        
+        // Traiter les tags normalisés
+        if (result.normalized_tags && result.normalized_tags.length > 0) {
+            result.normalized_tags.forEach(tag => {
+                if (!normalizedTags[tag]) {
+                    normalizedTags[tag] = 0;
+                }
+                normalizedTags[tag]++;
             });
         }
     });
     
     // Si aucun tag n'a été trouvé
-    if (Object.keys(allTags).length === 0) {
+    if (Object.keys(originalTags).length === 0 && Object.keys(normalizedTags).length === 0) {
         const noTagsContent = document.getElementById('noTagsContent');
         if (noTagsContent) {
             noTagsContent.classList.remove('d-none');
@@ -296,138 +362,182 @@ function displayTagsFromResults(results) {
         return;
     }
     
-    // Trier les tags par fréquence (décroissant)
-    const sortedTags = Object.keys(allTags).sort((a, b) => allTags[b] - allTags[a]);
-    
-    // Créer le contenu HTML
-    let tagsHtml = `
-        <h4 class="mb-4">Tags extraits (${Object.keys(allTags).length})</h4>
-        <div class="mb-4">
-            <canvas id="tagsChart" width="400" height="200"></canvas>
-        </div>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <h5 class="card-title mb-0">Distribution des tags</h5>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-group list-group-flush">
-                            ${sortedTags.map(tag => `
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>${escapeHtml(tag)}</span>
-                                    <span class="badge bg-primary rounded-pill">${allTags[tag]}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <h5 class="card-title mb-0">Réponses par tag</h5>
-                    </div>
-                    <div class="card-body">
-                        <select class="form-select mb-3" id="tagSelector">
-                            <option value="">Sélectionnez un tag</option>
-                            ${sortedTags.map(tag => `
-                                <option value="${escapeHtml(tag)}">${escapeHtml(tag)} (${allTags[tag]})</option>
-                            `).join('')}
-                        </select>
-                        <div id="tagSummaryContainer" class="d-none">
-                            <h6 id="currentTagName" class="mb-2"></h6>
-                            <div id="tagSummaryContent" class="mb-3"></div>
-                            <div id="tagResponsesList" class="list-group"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Mettre à jour le contenu
-    tagsContent.innerHTML = tagsHtml;
-    
     // Masquer le message "pas de tags"
     const noTagsContent = document.getElementById('noTagsContent');
     if (noTagsContent) {
         noTagsContent.classList.add('d-none');
     }
     
-    // Afficher la section des tags
-    tagsContent.classList.remove('d-none');
+    // Trier les tags par fréquence (décroissant)
+    const sortedOriginalTags = Object.keys(originalTags).sort((a, b) => originalTags[b] - originalTags[a]);
+    const sortedNormalizedTags = Object.keys(normalizedTags).sort((a, b) => normalizedTags[b] - normalizedTags[a]);
     
-    // Créer le graphique
-    const chartCanvas = document.getElementById('tagsChart');
-    if (chartCanvas) {
-        const ctx = chartCanvas.getContext('2d');
-        
-        // Limiter à 10 tags maximum pour la lisibilité
-        const topTags = sortedTags.slice(0, 10);
-        const tagValues = topTags.map(tag => allTags[tag]);
-        
-        // Créer le graphique
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: topTags,
-                datasets: [{
-                    label: 'Nombre d\'occurrences',
-                    data: tagValues,
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
+    // Construire le contenu HTML
+    let html = '';
+    
+    // Afficher le mapping des tags si disponible
+    if (tagMapping && Object.keys(tagMapping).length > 0) {
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Normalisation des Tags</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Voici comment les tags ont été normalisés :</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Tag Normalisé</th>
+                                    <th>Tags Originaux</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(tagMapping).map(([normalized, originals]) => `
+                                    <tr>
+                                        <td><span class="badge bg-success">${escapeHtml(normalized)}</span></td>
+                                        <td>${originals.map(tag => `<span class="badge bg-primary me-1">${escapeHtml(tag)}</span>`).join(' ')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
     }
     
-    // Ajouter l'événement pour afficher les réponses par tag
-    const tagSelector = document.getElementById('tagSelector');
-    if (tagSelector) {
-        tagSelector.addEventListener('change', function() {
-            const selectedTag = this.value;
-            if (!selectedTag) {
-                return;
-            }
-            
-            // Trouver toutes les réponses avec ce tag
-            const responsesWithTag = results.filter(result => 
-                result.tags && result.tags.includes(selectedTag)
-            );
-            
-            // Afficher les réponses
-            const tagSummaryContainer = document.getElementById('tagSummaryContainer');
-            const currentTagName = document.getElementById('currentTagName');
-            const tagResponsesList = document.getElementById('tagResponsesList');
-            
-            if (tagSummaryContainer && currentTagName && tagResponsesList) {
-                currentTagName.textContent = `Tag: ${selectedTag} (${responsesWithTag.length} réponses)`;
-                
-                tagResponsesList.innerHTML = responsesWithTag.map(result => `
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge bg-secondary">ID: ${result.id}</span>
-                        </div>
-                        <p class="mb-1">${escapeHtml(result.response)}</p>
+    // Afficher les tags normalisés
+    html += `
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Tags Normalisés</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    ${sortedNormalizedTags.map(tag => 
+                        `<div class="badge bg-success fs-6 p-2">
+                            ${escapeHtml(tag)} 
+                            <span class="badge bg-light text-dark ms-1">${normalizedTags[tag]}</span>
+                        </div>`
+                    ).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Afficher les tags originaux
+    html += `
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Tags Originaux</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    ${sortedOriginalTags.map(tag => 
+                        `<div class="badge bg-primary fs-6 p-2">
+                            ${escapeHtml(tag)} 
+                            <span class="badge bg-light text-dark ms-1">${originalTags[tag]}</span>
+                        </div>`
+                    ).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    tagsContent.innerHTML = html;
+}
+
+// Fonction pour afficher les synthèses dans l'onglet dédié
+function displaySynthesesFromResults(tagSummaries) {
+    const synthesisContent = document.getElementById('synthesisContent');
+    if (!synthesisContent) {
+        console.error("Élément synthesisContent non trouvé");
+        return;
+    }
+    
+    // Si aucune synthèse n'est disponible
+    if (!tagSummaries || Object.keys(tagSummaries).length === 0) {
+        synthesisContent.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-exclamation-circle fs-1"></i>
+                <p class="mt-3">Aucune synthèse disponible</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Masquer le message "pas de synthèses"
+    const noSynthesisContent = document.getElementById('noSummariesContent');
+    if (noSynthesisContent) {
+        noSynthesisContent.classList.add('d-none');
+    }
+    
+    // Trier les tags par nombre d'utilisateurs (décroissant)
+    const sortedTags = Object.keys(tagSummaries).sort((a, b) => 
+        tagSummaries[b].nombre_utilisateurs - tagSummaries[a].nombre_utilisateurs
+    );
+    
+    // Construire le contenu HTML
+    let html = `
+        <div class="row">
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Résumé des retours utilisateurs</h5>
                     </div>
-                `).join('');
-                
-                tagSummaryContainer.classList.remove('d-none');
-            }
-        });
+                    <div class="card-body">
+                        <p class="card-text">
+                            Voici une synthèse des retours utilisateurs regroupés par thématique.
+                            Chaque synthèse inclut le nombre d'utilisateurs concernés et des verbatims représentatifs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            ${sortedTags.map(tag => {
+                const summary = tagSummaries[tag];
+                return `
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header py-2 bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-success fs-5 p-2">${escapeHtml(tag)}</span>
+                                    <span class="badge bg-secondary">${summary.nombre_utilisateurs} utilisateur(s)</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">${escapeHtml(summary.synthèse)}</p>
+                                ${summary.verbatims && summary.verbatims.length > 0 ? 
+                                    `<div class="verbatims mt-3">
+                                        <h6 class="text-muted">Verbatims:</h6>
+                                        <ul class="list-group list-group-flush">
+                                            ${summary.verbatims.map(verbatim => 
+                                                `<li class="list-group-item bg-light fst-italic">"${escapeHtml(verbatim)}"</li>`
+                                            ).join('')}
+                                        </ul>
+                                    </div>` : 
+                                    ''
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    synthesisContent.innerHTML = html;
+}
+
+// Fonction pour basculer vers l'onglet "Synthèses"
+function showSynthesisTab() {
+    const synthesisTab = document.getElementById('synthesis-tab');
+    if (synthesisTab) {
+        const tabInstance = new bootstrap.Tab(synthesisTab);
+        tabInstance.show();
     }
 }
 
