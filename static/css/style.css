@@ -1,15 +1,35 @@
 /* Styles personnalisés pour l'Analyseur de Réponses Ouvertes */
 
-body {
-    background-color: #f8f9fa;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+:root {
+    --primary-color: #1a73e8;
+    --secondary-color: #34a853;
+    --background-color: #f8f9fa;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --transition-speed: 0.3s;
 }
 
+body {
+    background-color: var(--background-color);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Conteneur principal avec largeur maximale pour éviter trop d'espacement sur grands écrans */
+.container-fluid {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Styles pour les cartes */
 .card {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    border-radius: 0.5rem;
-    border: 1px solid rgba(0, 0, 0, 0.125);
-    margin-bottom: 1rem;
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .card-header {
@@ -21,6 +41,10 @@ body {
 .card-title {
     margin-bottom: 0;
     font-weight: 500;
+}
+
+.card-body {
+    padding: 1rem;
 }
 
 /* Styles pour les onglets résultats */
@@ -45,6 +69,8 @@ body {
     margin-bottom: 0.5rem;
     cursor: pointer;
     transition: background-color 0.2s;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
 }
 
 .tag-item:hover {
@@ -69,6 +95,7 @@ body {
 .table-responsive {
     max-height: 600px;
     overflow-y: auto;
+    border-radius: 0.25rem;
 }
 
 .table th {
@@ -76,6 +103,10 @@ body {
     top: 0;
     background-color: #f8f9fa;
     z-index: 1;
+}
+
+.table td {
+    vertical-align: middle;
 }
 
 /* Styles pour les synthèses */
@@ -88,6 +119,19 @@ body {
 /* Styles pour les formulaires */
 .form-label {
     font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control {
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    padding: 0.7rem 1rem;
+    transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
 /* Styles pour les réponses associées aux tags */
@@ -114,13 +158,189 @@ body {
     margin-top: 1rem;
 }
 
+/* Styles pour la section d'analyse individuelle */
+.container.mt-5 {
+    max-width: 900px;
+    margin-top: 2rem !important;
+}
+
 /* Styles responsive */
+@media (max-width: 1200px) {
+    .container-fluid {
+        max-width: 100%;
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .row {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+    }
+    
+    .col-md-3, .col-md-9, .col-md-6 {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .col-md-3, .col-md-9 {
+        margin-bottom: 1rem;
+    }
+    
+    .card {
         margin-bottom: 1rem;
     }
     
     .card-body {
         padding: 0.75rem;
     }
+    
+    .container.mt-5 {
+        padding: 0 1rem;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+}
+
+.btn-primary:hover {
+    background-color: #1557b0;
+    transform: translateY(-1px);
+}
+
+.navbar {
+    background-color: white !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.navbar-brand {
+    font-weight: 600;
+    color: var(--primary-color) !important;
+}
+
+.nav-link {
+    font-weight: 500;
+    transition: color var(--transition-speed);
+}
+
+.nav-link:hover {
+    color: var(--primary-color);
+}
+
+/* File upload zone */
+.upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all var(--transition-speed);
+    cursor: pointer;
+}
+
+.upload-zone .display-6 {
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.upload-zone p {
+    margin-bottom: 0.25rem;
+}
+
+.upload-zone .btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--primary-color);
+    background-color: rgba(26, 115, 232, 0.05);
+}
+
+/* Results section */
+.results-section {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.5s ease-out;
+}
+
+.results-section.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Tags */
+.tag {
+    background-color: #e8f0fe;
+    color: var(--primary-color);
+    padding: 0.3rem 0.8rem;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    margin: 0.2rem;
+    display: inline-block;
+    transition: all var(--transition-speed);
+}
+
+.tag:hover {
+    background-color: #d2e3fc;
+    transform: scale(1.05);
+}
+
+/* Loading spinner */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Styles pour l'affichage JSON */
+.json-view {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #333;
+}
+
+.json-view .json-key {
+    color: #0550ae;
+    font-weight: 500;
+}
+
+.json-view .json-string {
+    color: #22863a;
+}
+
+.json-view .json-number {
+    color: #e36209;
+}
+
+.json-view .json-boolean {
+    color: #005cc5;
+}
+
+.json-view .json-null {
+    color: #6a737d;
 } 
