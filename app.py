@@ -331,53 +331,79 @@ def process_generate_summaries(normalized_tags):
 
 def analyze_with_mistral(response_text, prompt_template=None):
     """Analyser avec Mistral AI"""
-    if not prompt_template:
-        # Prompt par défaut pour l'analyse
-        prompt_template = """
-        Analyse la réponse suivante et identifie les concepts clés abordés.
-        
-        Réponse: {response}
-        
-        Réponds au format JSON.
-        """
-    
-    # Construire le prompt final
-    prompt = prompt_template.replace("{response}", response_text) if "{response}" in prompt_template else response_text
-    
     try:
-        # Faire l'appel à l'API Mistral
-        messages = [ChatMessage(role="user", content=prompt)]
-        chat_response = mistral_client.chat(
-            model=MISTRAL_MODEL,
-            messages=messages
-        )
+        logger.info(f"Appel à Mistral AI avec texte de longueur {len(response_text)}")
         
-        response_text = chat_response.choices[0].message.content
+        if not prompt_template:
+            # Prompt par défaut pour l'analyse
+            prompt_template = """
+            Analyse la réponse suivante et identifie les concepts clés abordés.
+            
+            Réponse: {response}
+            
+            Réponds au format JSON.
+            """
         
-        # Essayer de parser comme JSON
+        # Construire le prompt final
+        prompt = prompt_template.replace("{response}", response_text) if "{response}" in prompt_template else response_text
+        logger.info(f"Prompt construit, longueur: {len(prompt)}")
+        
         try:
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            return {"raw_analysis": response_text}
+            # Faire l'appel à l'API Mistral
+            messages = [ChatMessage(role="user", content=prompt)]
+            logger.info(f"Envoi de la requête à Mistral avec modèle: {MISTRAL_MODEL}")
+            
+            chat_response = mistral_client.chat(
+                model=MISTRAL_MODEL,
+                messages=messages
+            )
+            
+            response_text = chat_response.choices[0].message.content
+            logger.info(f"Réponse reçue de Mistral, longueur: {len(response_text)}")
+            
+            # Essayer de parser comme JSON
+            try:
+                parsed_json = json.loads(response_text)
+                logger.info("Réponse parsée avec succès en JSON")
+                return parsed_json
+            except json.JSONDecodeError:
+                logger.warning("La réponse n'est pas un JSON valide, retour en brut")
+                return {"raw_analysis": response_text}
+        except Exception as e:
+            logger.error(f"Erreur lors de l'appel à l'API Mistral: {str(e)}")
+            return {"error": str(e), "error_type": type(e).__name__}
     except Exception as e:
+        logger.error(f"Erreur générale dans analyze_with_mistral: {str(e)}")
         return {"error": str(e), "error_type": type(e).__name__}
 
 @app.route('/analyze_response', methods=['POST'])
 def analyze_endpoint():
-    data = request.json
-    response_text = data.get('response_text', '')
-    custom_prompt = data.get('custom_prompt', None)
-    
-    if not response_text:
-        return jsonify({"error": "Texte manquant"}), 400
-    
-    analysis_result = analyze_with_mistral(response_text, custom_prompt)
-    
-    return jsonify({
-        "original_response": response_text,
-        "analysis": analysis_result,
-        "model_used": MISTRAL_MODEL
-    })
+    try:
+        logger.info("Requête reçue sur /analyze_response")
+        data = request.json
+        logger.info(f"Données reçues: {data}")
+        
+        response_text = data.get('response_text', '')
+        custom_prompt = data.get('custom_prompt', None)
+        
+        if not response_text:
+            logger.warning("Aucun texte de réponse fourni")
+            return jsonify({"error": "Texte manquant"}), 400
+        
+        logger.info(f"Analyse en cours pour texte de longueur {len(response_text)}")
+        analysis_result = analyze_with_mistral(response_text, custom_prompt)
+        logger.info(f"Analyse terminée, résultat: {type(analysis_result)}")
+        
+        result = {
+            "original_response": response_text,
+            "analysis": analysis_result,
+            "model_used": MISTRAL_MODEL
+        }
+        logger.info("Envoi de la réponse")
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Erreur dans analyze_endpoint: {str(e)}")
+        return jsonify({"error": str(e), "error_type": type(e).__name__}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002) 
