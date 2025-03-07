@@ -1,8 +1,14 @@
 # Analyseur de Réponses Ouvertes
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Flask](https://img.shields.io/badge/flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
+
 Une application minimaliste et efficace pour analyser des réponses ouvertes en utilisant un modèle de langage (LLM).
 
-## Fonctionnalités
+![Interface de l'application](static/img/screenshot.png)
+
+## 🚀 Fonctionnalités
 
 - Importation de fichiers CSV, JSON ou TXT contenant des réponses à analyser
 - Analyse automatique des réponses en 5 étapes:
@@ -14,48 +20,50 @@ Une application minimaliste et efficace pour analyser des réponses ouvertes en 
 - Interface intuitive pour visualiser les résultats
 - Exportation des résultats en CSV et JSON
 
-## Prérequis
+## 🛠 Prérequis
 
 - Python 3.8 ou version ultérieure
 - Pip (gestionnaire de paquets Python)
-- Une clé API pour un LLM (OpenAI GPT ou Anthropic Claude)
+- Une clé API pour un LLM (Mistral AI, OpenAI GPT ou Anthropic Claude)
 
-## Installation
+## 🔧 Installation
 
 1. Clonez ce dépôt ou téléchargez les fichiers sources
 2. Créez un environnement virtuel Python (recommandé):
 
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # Sur Windows: venv\Scripts\activate
 ```
 
 3. Installez les dépendances:
 
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 Avant d'utiliser l'application, vous devez configurer un modèle de langage (LLM):
 
 1. Lancez l'application
 2. Cliquez sur "Configuration" dans la barre de navigation
-3. Sélectionnez le fournisseur (OpenAI ou Anthropic)
+3. Sélectionnez le fournisseur (Mistral AI, OpenAI ou Anthropic)
 4. Entrez votre clé API
-5. Choisissez le modèle à utiliser (par exemple "gpt-4-turbo" pour OpenAI)
+5. Choisissez le modèle à utiliser (par exemple "mistral-large-latest" pour Mistral AI, "gpt-4-turbo" pour OpenAI)
 6. Enregistrez la configuration
 
-## Utilisation
+Note: Par défaut, l'application est configurée pour utiliser Mistral AI.
+
+## 📖 Utilisation
 
 1. Lancez l'application:
 
 ```bash
-python app.py
+python3 app.py
 ```
 
-2. Ouvrez un navigateur et accédez à `http://localhost:5000`
+2. Ouvrez un navigateur et accédez à `http://localhost:5002`
 3. Importez un fichier contenant des réponses ouvertes (formats acceptés: CSV, JSON, TXT)
 4. Si nécessaire, sélectionnez la colonne contenant les réponses à analyser
 5. Cliquez sur "Analyser les réponses"
@@ -65,13 +73,13 @@ python app.py
    - **Données**: Tableau des réponses avec les tags associés
 7. Exportez les résultats en CSV ou JSON pour une analyse plus approfondie
 
-## Format des fichiers d'entrée
+## 📄 Format des fichiers d'entrée
 
 - **CSV**: Le fichier doit contenir une colonne avec les réponses. L'en-tête de colonne est requis.
 - **JSON**: Le fichier doit contenir un tableau d'objets, chaque objet ayant un champ avec la réponse.
 - **TXT**: Chaque ligne du fichier est considérée comme une réponse distincte.
 
-## Structure du projet
+## 🗂 Structure du projet
 
 ```
 open-response-analyzer/
@@ -94,22 +102,41 @@ open-response-analyzer/
     └── index.html         # Page principale
 ```
 
-## Dépendances
+## 📚 Dépendances principales
 
-- Flask: Framework web léger pour Python
-- Pandas: Manipulation et analyse de données
-- Requests: Client HTTP pour les appels API
-- Bootstrap: Framework CSS pour l'interface utilisateur
-- Chart.js: Bibliothèque de visualisation de données
+- **Flask** (2.0+): Framework web léger pour Python
+- **Pandas** (1.5+): Manipulation et analyse de données
+- **Requests** (2.28+): Client HTTP pour les appels API
+- **Bootstrap** (5.3): Framework CSS pour l'interface utilisateur
+- **Chart.js** (4.0+): Bibliothèque de visualisation de données
+- **MistralAI** (Client officiel pour l'API Mistral AI)
+- **python-dotenv**: Pour la gestion des variables d'environnement
 
-## Licence
+## 📜 Licence
 
-Ce projet est distribué sous licence MIT. Voir le fichier `LICENSE` pour plus d'informations.
+Ce projet est distribué sous licence GNU Affero General Public License v3.0 (AGPL-3.0).
 
-## Contribuer
+**Pourquoi AGPL-3.0 ?**
+- Garantit que le code reste libre et open source
+- Protège les droits des utilisateurs même dans un contexte de service en ligne
+- Encourage la transparence et la collaboration
+- Permet aux communautés d'adapter l'outil à leurs besoins
+- Assure que les améliorations profitent à tous
 
-Les contributions sont les bienvenues! N'hésitez pas à ouvrir une issue ou à proposer une pull request.
+[Lire le texte complet de la licence](LICENSE)
 
-## Support
+## 🤝 Contribuer
 
-Pour toute question ou problème, veuillez ouvrir une issue sur le dépôt GitHub. 
+Les contributions sont les bienvenues! Voici comment vous pouvez aider:
+
+1. Forkez le projet
+2. Créez une branche pour votre fonctionnalité (`git checkout -b feature/AmazingFeature`)
+3. Committez vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Poussez vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une Pull Request
+
+## 💬 Support
+
+Pour toute question ou problème:
+- Ouvrez une [issue](https://github.com/Fasterious/open-response-analyzer-app.py-/issues)
+- Consultez les [discussions](https://github.com/Fasterious/open-response-analyzer-app.py-/discussions) 
