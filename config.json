@@ -1,6 +1,4 @@
 {
     "model": "mistral-large-latest",
-    "api_key": "uaJoVTuVR0njnU1DXkpgvdlDiSVlgmcX",
-    "endpoint": "https://api.mistral.ai/v1/chat/completions",
-    "provider": "mistral"
+    "endpoint": "https://api.mistral.ai/v1/chat/completions"
 } 

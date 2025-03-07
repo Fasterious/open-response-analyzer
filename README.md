@@ -44,16 +44,17 @@ pip3 install -r requirements.txt
 
 ## ⚙️ Configuration
 
-Avant d'utiliser l'application, vous devez configurer un modèle de langage (LLM):
+Avant d'utiliser l'application, vous devez configurer votre clé API Mistral :
 
-1. Lancez l'application
-2. Cliquez sur "Configuration" dans la barre de navigation
-3. Sélectionnez le fournisseur (Mistral AI, OpenAI ou Anthropic)
-4. Entrez votre clé API
-5. Choisissez le modèle à utiliser (par exemple "mistral-large-latest" pour Mistral AI, "gpt-4-turbo" pour OpenAI)
-6. Enregistrez la configuration
+1. Créez un fichier `.env` à la racine du projet avec le contenu suivant :
+```
+MISTRAL_API_KEY=votre_cle_api_ici
+```
 
-Note: Par défaut, l'application est configurée pour utiliser Mistral AI.
+2. Remplacez `votre_cle_api_ici` par votre clé API Mistral (obtenue sur [https://console.mistral.ai](https://console.mistral.ai))
+
+3. Lancez l'application
+4. Si nécessaire, vous pouvez modifier le modèle utilisé en cliquant sur "Configuration" dans la barre de navigation
 
 ## 📖 Utilisation
 
