@@ -613,13 +613,24 @@ document.addEventListener('DOMContentLoaded', function() {
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            console.log("Soumission du formulaire d'upload");
+            
             if (!fileInput.files[0]) {
                 showAlert('Veuillez sélectionner un fichier', 'danger');
                 return;
             }
             
+            console.log("Fichier à envoyer:", fileInput.files[0].name, "Taille:", fileInput.files[0].size, "Type:", fileInput.files[0].type);
+            
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
+            
+            // Afficher le spinner
+            const spinner = analyzeBtn.querySelector('.spinner-border');
+            if (spinner) {
+                spinner.classList.remove('d-none');
+            }
+            analyzeBtn.disabled = true;
             
             // Afficher un indicateur de chargement
             showLoading('Importation en cours...');
@@ -629,37 +640,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log("Réponse du serveur:", response.status);
+                return response.json();
+            })
             .then(data => {
                 hideLoading();
+                console.log("Données reçues du serveur:", data);
+                
+                // Masquer le spinner
+                const spinner = analyzeBtn.querySelector('.spinner-border');
+                if (spinner) {
+                    spinner.classList.add('d-none');
+                }
                 
                 if (data.success) {
                     // Mettre à jour les informations du fichier
-                    rowCount.textContent = data.rows;
-                    columnList.textContent = data.columns.join(', ');
+                    if (rowCount) rowCount.textContent = data.rows;
+                    if (columnList) columnList.textContent = data.columns.join(', ');
                     
                     // Remplir la liste déroulante des colonnes
-                    columnSelect.innerHTML = '';
-                    data.columns.forEach(column => {
-                        const option = document.createElement('option');
-                        option.value = column;
-                        option.textContent = column;
-                        
-                        // Sélectionner par défaut la colonne "response" si elle existe
-                        if (column.toLowerCase() === 'response' || column.toLowerCase() === 'réponse') {
-                            option.selected = true;
-                            currentColumnName = column;
-                        }
-                        
-                        columnSelect.appendChild(option);
-                    });
+                    if (columnSelect) {
+                        columnSelect.innerHTML = '';
+                        data.columns.forEach(column => {
+                            const option = document.createElement('option');
+                            option.value = column;
+                            option.textContent = column;
+                            
+                            // Sélectionner par défaut la colonne "response" si elle existe
+                            if (column.toLowerCase() === 'response' || column.toLowerCase() === 'réponse') {
+                                option.selected = true;
+                                currentColumnName = column;
+                            }
+                            
+                            columnSelect.appendChild(option);
+                        });
+                    }
                     
                     // Afficher les éléments d'information et le bouton de traitement
-                    fileInfo.classList.remove('d-none');
+                    if (fileInfo) fileInfo.classList.remove('d-none');
                     
-                    if (data.columns.length > 1) {
+                    if (columnSelectContainer && data.columns.length > 1) {
                         columnSelectContainer.classList.remove('d-none');
-                    } else {
+                    } else if (columnSelectContainer) {
                         columnSelectContainer.classList.add('d-none');
                     }
                     
@@ -678,8 +701,56 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Afficher l'aperçu dans l'onglet Données
                     updateDataTable(data.preview, null);
-                    dataContent.classList.remove('d-none');
-                    noDataContent.classList.add('d-none');
+                    if (dataContent) dataContent.classList.remove('d-none');
+                    if (noDataContent) noDataContent.classList.add('d-none');
+                    
+                    // Activer le bouton d'analyse
+                    if (analyzeBtn) {
+                        analyzeBtn.disabled = false;
+                        console.log("Bouton d'analyse activé");
+                        
+                        // Déclencher automatiquement l'analyse après l'upload
+                        console.log("Démarrage automatique de l'analyse après upload");
+                        
+                        // Afficher un message de chargement pour l'analyse
+                        showLoading('Analyse en cours avec Mistral...');
+                        
+                        fetch('/api/process', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                column: currentColumnName
+                            })
+                        })
+                        .then(response => {
+                            console.log("Réponse reçue du serveur:", response.status);
+                            if (!response.ok) {
+                                return response.json().then(data => {
+                                    throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`);
+                                });
+                            }
+                            return response.json();
+                        })
+                        .then(result => {
+                            hideLoading();
+                            console.log("Résultat de l'analyse:", result);
+                            
+                            if (result.success) {
+                                // Afficher les résultats
+                                displayResults(result);
+                                showAlert('Analyse terminée avec succès', 'success');
+                            } else {
+                                showAlert(`Erreur lors de l'analyse: ${result.error}`, 'danger');
+                            }
+                        })
+                        .catch(error => {
+                            hideLoading();
+                            console.error("Erreur détaillée lors de l'analyse:", error);
+                            showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
+                        });
+                    }
                     
                     showAlert(`Fichier importé avec succès: ${data.rows} lignes`, 'success');
                 } else {
@@ -688,6 +759,15 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 hideLoading();
+                console.error("Erreur lors de l'importation:", error);
+                
+                // Masquer le spinner
+                const spinner = analyzeBtn.querySelector('.spinner-border');
+                if (spinner) {
+                    spinner.classList.add('d-none');
+                }
+                analyzeBtn.disabled = false;
+                
                 showAlert(`Erreur lors de l'importation: ${error.message}`, 'danger');
             });
         });
@@ -703,16 +783,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Afficher les indicateurs de chargement
             showLoading('Analyse en cours...');
-            loadingTags.classList.remove('d-none');
-            tagsContent.classList.add('d-none');
-            noTagsContent.classList.add('d-none');
-            loadingSummaries.classList.remove('d-none');
-            summariesContent.classList.add('d-none');
-            noSummariesContent.classList.add('d-none');
+            if (loadingTags) loadingTags.classList.remove('d-none');
+            if (tagsContent) tagsContent.classList.add('d-none');
+            if (noTagsContent) noTagsContent.classList.add('d-none');
+            if (loadingSummaries) loadingSummaries.classList.remove('d-none');
+            if (summariesContent) summariesContent.classList.add('d-none');
+            if (noSummariesContent) noSummariesContent.classList.add('d-none');
             
             // Désactiver les boutons d'exportation pendant le traitement
-            exportCsvBtn.disabled = true;
-            exportJsonBtn.disabled = true;
+            if (exportCsvBtn) exportCsvBtn.disabled = true;
+            if (exportJsonBtn) exportJsonBtn.disabled = true;
             
             // Appeler l'API pour le traitement
             fetch('/api/process', {
@@ -727,8 +807,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 hideLoading();
-                loadingTags.classList.add('d-none');
-                loadingSummaries.classList.add('d-none');
+                if (loadingTags) loadingTags.classList.add('d-none');
+                if (loadingSummaries) loadingSummaries.classList.add('d-none');
                 
                 if (data.success) {
                     // Stocker les résultats
@@ -740,28 +820,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateDataTableWithTags(analysisResults);
                     
                     // Activer les boutons d'exportation
-                    exportCsvBtn.disabled = false;
-                    exportJsonBtn.disabled = false;
+                    if (exportCsvBtn) exportCsvBtn.disabled = false;
+                    if (exportJsonBtn) exportJsonBtn.disabled = false;
                     
                     showAlert('Analyse terminée avec succès', 'success');
                 } else {
                     showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
                     
                     // Afficher les messages "aucun contenu"
-                    noTagsContent.classList.remove('d-none');
-                    noSummariesContent.classList.remove('d-none');
+                    if (noTagsContent) noTagsContent.classList.remove('d-none');
+                    if (noSummariesContent) noSummariesContent.classList.remove('d-none');
                 }
             })
             .catch(error => {
                 hideLoading();
-                loadingTags.classList.add('d-none');
-                loadingSummaries.classList.add('d-none');
+                if (loadingTags) loadingTags.classList.add('d-none');
+                if (loadingSummaries) loadingSummaries.classList.add('d-none');
                 
                 showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
                 
                 // Afficher les messages "aucun contenu"
-                noTagsContent.classList.remove('d-none');
-                noSummariesContent.classList.remove('d-none');
+                if (noTagsContent) noTagsContent.classList.remove('d-none');
+                if (noSummariesContent) noSummariesContent.classList.remove('d-none');
             });
         });
     }
@@ -964,6 +1044,63 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Ajouter un gestionnaire d'événements pour l'input de fichier
+    if (fileInput) {
+        console.log("Ajout du gestionnaire d'événements pour l'input de fichier");
+        fileInput.addEventListener('change', function() {
+            console.log("Fichier sélectionné:", this.files[0] ? this.files[0].name : "aucun");
+            if (analyzeBtn) {
+                analyzeBtn.disabled = this.files.length === 0;
+            }
+        });
+    } else {
+        console.error("L'élément fileInput n'a pas été trouvé dans le DOM");
+    }
+    
+    // Configurer le drag and drop pour la zone de dépôt
+    const dropZone = getElement('dropZone');
+    if (dropZone) {
+        console.log("Configuration du drag and drop pour la zone de dépôt");
+        
+        // Empêcher le comportement par défaut pour ces événements
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Ajouter/supprimer la classe 'dragover' pour le style
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function() {
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function() {
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+        
+        // Gérer le dépôt de fichier
+        dropZone.addEventListener('drop', function(e) {
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                
+                // Déclencher l'événement change manuellement
+                const event = new Event('change');
+                fileInput.dispatchEvent(event);
+                
+                console.log("Fichier déposé:", e.dataTransfer.files[0].name);
+            }
+        }, false);
+    } else {
+        console.error("L'élément dropZone n'a pas été trouvé dans le DOM");
+    }
+    
     // Fonctions utilitaires
     
     // Affichage d'un indicateur de chargement global
@@ -989,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mise à jour de la visualisation des tags
     function updateTagsVisualization(results) {
         if (!results || !results.normalized_tags || Object.keys(results.normalized_tags).length === 0) {
-            noTagsContent.classList.remove('d-none');
+            if (noTagsContent) noTagsContent.classList.remove('d-none');
             return;
         }
         
@@ -1000,8 +1137,8 @@ document.addEventListener('DOMContentLoaded', function() {
         displayNormalizedTags(results.normalized_tags);
         
         // Afficher la section des tags
-        tagsContent.classList.remove('d-none');
-        noTagsContent.classList.add('d-none');
+        if (tagsContent) tagsContent.classList.remove('d-none');
+        if (noTagsContent) noTagsContent.classList.add('d-none');
     }
     
     // Création du graphique de distribution des tags
@@ -1109,31 +1246,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mise à jour de la section des synthèses
     function updateSummariesSection(results) {
         if (!results || !results.summaries || Object.keys(results.summaries).length === 0) {
-            noSummariesContent.classList.remove('d-none');
+            if (noSummariesContent) noSummariesContent.classList.remove('d-none');
             return;
         }
         
         // Remplir le sélecteur de tags
-        tagSelector.innerHTML = '<option value="">Sélectionnez un tag...</option>';
-        
-        // Ajouter les options pour chaque tag (triés par nombre de réponses)
-        const tagCounts = {};
-        for (const tag in results.tag_groups) {
-            tagCounts[tag] = results.tag_groups[tag].length;
+        const tagSelector = getElement('tagSelector');
+        if (!tagSelector) {
+            console.error("Élément tagSelector non trouvé");
+            return;
         }
         
-        const sortedTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
+        tagSelector.innerHTML = '<option value="">Sélectionnez un tag...</option>';
         
-        sortedTags.forEach(tag => {
+        // Ajouter une option pour chaque tag
+        for (const tag in results.summaries) {
             const option = document.createElement('option');
             option.value = tag;
-            option.textContent = `${tag} (${tagCounts[tag]} réponses)`;
+            option.textContent = tag;
             tagSelector.appendChild(option);
-        });
+        }
         
         // Afficher la section des synthèses
-        summariesContent.classList.remove('d-none');
-        noSummariesContent.classList.add('d-none');
+        if (summariesContent) summariesContent.classList.remove('d-none');
+        if (noSummariesContent) noSummariesContent.classList.add('d-none');
     }
     
     // Affichage des réponses associées à un tag
@@ -1212,8 +1348,8 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.innerHTML = '';
         
         if (!data || data.length === 0) {
-            noDataContent.classList.remove('d-none');
-            dataContent.classList.add('d-none');
+            if (noDataContent) noDataContent.classList.remove('d-none');
+            if (dataContent) dataContent.classList.add('d-none');
             return;
         }
         
@@ -1236,8 +1372,8 @@ document.addEventListener('DOMContentLoaded', function() {
             tbody.appendChild(row);
         });
         
-        dataContent.classList.remove('d-none');
-        noDataContent.classList.add('d-none');
+        if (dataContent) dataContent.classList.remove('d-none');
+        if (noDataContent) noDataContent.classList.add('d-none');
     }
     
     // Formatter le texte (convertir les sauts de ligne en HTML)

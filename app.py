@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import mistralai
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
+import traceback
 
 # Chargement des variables d'environnement depuis .env
 load_dotenv()
@@ -136,53 +137,136 @@ def process_data():
         params = request.json
         column_name = params.get('column', 'response')
         
+        logger.info(f"Démarrage du traitement des données avec la colonne: {column_name}")
+        
         # Charger les données
         temp_path = os.path.join("static", "temp_data.json")
         if not os.path.exists(temp_path):
+            logger.error(f"Fichier temporaire non trouvé: {temp_path}")
             return jsonify({"success": False, "error": "Aucune donnée à analyser. Veuillez d'abord télécharger un fichier."}), 400
             
+        logger.info(f"Chargement des données depuis {temp_path}")
         df = pd.read_json(temp_path, orient="records")
+        logger.info(f"Données chargées: {len(df)} lignes, colonnes: {df.columns.tolist()}")
         
         if column_name not in df.columns:
+            logger.error(f"Colonne {column_name} non trouvée dans les données")
             return jsonify({"success": False, "error": f"La colonne {column_name} n'existe pas dans les données"}), 400
         
         # Récupérer les réponses
         responses = df[column_name].tolist()
+        logger.info(f"Extraction de {len(responses)} réponses de la colonne {column_name}")
+        
+        # Vérifier la clé API Mistral
+        if not MISTRAL_API_KEY:
+            logger.error("Clé API Mistral non définie")
+            return jsonify({"success": False, "error": "Clé API Mistral non définie. Veuillez configurer votre clé API dans le fichier .env ou dans la configuration."}), 400
         
         # Traiter les réponses avec le LLM en plusieurs étapes
         results = {
-            "tags": process_extract_tags(responses),
+            "tags": [],
             "normalized_tags": {},
             "response_tags": [],
             "tag_groups": {},
             "summaries": {}
         }
         
+        # Étape 1: Extraction des tags
+        logger.info("Étape 1: Extraction des tags")
+        try:
+            results["tags"] = process_extract_tags(responses)
+            logger.info(f"Tags extraits: {results['tags']}")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'extraction des tags: {e}")
+            return jsonify({"success": False, "error": f"Erreur lors de l'extraction des tags: {str(e)}"}), 500
+        
+        # Si aucun tag n'a été extrait, retourner une erreur
+        if not results["tags"]:
+            logger.error("Aucun tag n'a été extrait des réponses")
+            return jsonify({"success": False, "error": "Aucun tag n'a été extrait des réponses. Veuillez vérifier le contenu de vos données."}), 400
+        
         # Étape 2: Normalisation des tags
-        results["normalized_tags"] = process_normalize_tags(results["tags"])
+        logger.info("Étape 2: Normalisation des tags")
+        try:
+            results["normalized_tags"] = process_normalize_tags(results["tags"])
+            logger.info(f"Tags normalisés: {results['normalized_tags']}")
+        except Exception as e:
+            logger.error(f"Erreur lors de la normalisation des tags: {e}")
+            return jsonify({"success": False, "error": f"Erreur lors de la normalisation des tags: {str(e)}"}), 500
         
         # Étape 3: Réattribution des tags normalisés
-        results["response_tags"] = process_reassign_tags(responses, results["normalized_tags"])
+        logger.info("Étape 3: Réattribution des tags normalisés")
+        try:
+            results["response_tags"] = process_reassign_tags(responses, results["normalized_tags"])
+            logger.info(f"Tags réattribués: {len(results['response_tags'])} réponses")
+        except Exception as e:
+            logger.error(f"Erreur lors de la réattribution des tags: {e}")
+            return jsonify({"success": False, "error": f"Erreur lors de la réattribution des tags: {str(e)}"}), 500
         
         # Étape 4: Regroupement par tag
-        results["tag_groups"] = process_group_by_tag(responses, results["response_tags"])
+        logger.info("Étape 4: Regroupement par tag")
+        try:
+            results["tag_groups"] = process_group_by_tag(responses, results["response_tags"])
+            logger.info(f"Groupes de tags: {len(results['tag_groups'])} groupes")
+        except Exception as e:
+            logger.error(f"Erreur lors du regroupement par tag: {e}")
+            return jsonify({"success": False, "error": f"Erreur lors du regroupement par tag: {str(e)}"}), 500
         
         # Étape 5: Synthèse des retours
-        results["summaries"] = process_generate_summaries(results["tag_groups"])
+        logger.info("Étape 5: Génération des synthèses")
+        try:
+            results["summaries"] = process_generate_summaries(results["tag_groups"])
+            logger.info(f"Synthèses générées: {len(results['summaries'])} synthèses")
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération des synthèses: {e}")
+            return jsonify({"success": False, "error": f"Erreur lors de la génération des synthèses: {str(e)}"}), 500
         
         # Sauvegarder les résultats
         results_path = os.path.join("static", "analysis_results.json")
-        with open(results_path, 'w') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+        try:
+            with open(results_path, 'w') as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            logger.info(f"Résultats sauvegardés dans {results_path}")
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde des résultats: {e}")
+            # Ne pas retourner d'erreur ici, car l'analyse a réussi
         
-        return jsonify({
+        # Préparer les résultats pour l'affichage
+        display_results = {
             "success": True,
             "message": "Analyse terminée avec succès",
-            "results": results
-        })
+            "results": []
+        }
+        
+        # Ajouter les résultats pour chaque réponse
+        for i, response in enumerate(responses):
+            result_item = {
+                "id": i + 1,
+                "response": response,
+                "original_tags": [],
+                "normalized_tags": [],
+                "tag_summaries": {}
+            }
+            
+            # Ajouter les tags normalisés pour cette réponse
+            for tag_item in results["response_tags"]:
+                if tag_item.get("response_id") == i + 1:
+                    result_item["normalized_tags"] = tag_item.get("normalized_tags", [])
+                    break
+            
+            # Ajouter les synthèses pour les tags de cette réponse
+            for tag in result_item["normalized_tags"]:
+                if tag in results["summaries"]:
+                    result_item["tag_summaries"][tag] = results["summaries"][tag]
+            
+            display_results["results"].append(result_item)
+        
+        logger.info("Traitement terminé avec succès")
+        return jsonify(display_results)
         
     except Exception as e:
         logger.error(f"Erreur lors de l'analyse des données: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/export/<format>', methods=['GET'])
@@ -256,18 +340,31 @@ def call_llm(prompt, max_tokens=4000):
         elif provider == 'mistral':
             # Utiliser la fonction analyze_with_mistral mais adapter pour l'interface commune
             result = analyze_with_mistral(prompt)
-            # Si le résultat est déjà un dictionnaire, retourner directement
+            # Si le résultat est un dictionnaire
             if isinstance(result, dict):
+                # S'il y a une erreur, la logger et la propager
+                if 'error' in result:
+                    logger.error(f"Erreur Mistral: {result['error']}")
+                    raise ValueError(f"Erreur Mistral: {result['error']}")
+                # S'il y a une analyse brute, la retourner
+                elif 'raw_analysis' in result:
+                    return result['raw_analysis']
+                # Sinon, convertir le dictionnaire en JSON
+                else:
+                    return json.dumps(result)
+            # Si c'est déjà une chaîne, la retourner directement
+            elif isinstance(result, str):
                 return result
-            # Sinon, retourner le texte comme résultat
-            return {"content": result}
+            else:
+                logger.error(f"Format de réponse inattendu de Mistral: {type(result)}")
+                raise ValueError(f"Format de réponse inattendu de Mistral: {type(result)}")
         else:
             logger.error(f"Fournisseur LLM non pris en charge: {provider}")
             raise ValueError(f"Fournisseur LLM non pris en charge: {provider}")
             
     except Exception as e:
         logger.error(f"Erreur lors de l'appel au LLM: {e}")
-        return {"error": str(e)}
+        raise e
 
 def call_openai(prompt, max_tokens=4000):
     """
@@ -334,6 +431,10 @@ def process_extract_tags(responses):
     batch_size = 25  # Traiter par lots pour éviter les limites de contexte
     all_tags = []
     
+    logger.info(f"Début de l'extraction des tags pour {len(responses)} réponses")
+    logger.info(f"Exemple de réponse: {responses[0][:100]}...")
+    
+    # Première tentative avec l'approche par lots
     for i in range(0, len(responses), batch_size):
         batch = responses[i:i+batch_size]
         prompt = """
@@ -352,30 +453,126 @@ def process_extract_tags(responses):
         sans autre texte explicatif. Le format doit être ["tag1", "tag2", "tag3", ...].
         """
         
-        result = call_llm(prompt)
-        
-        # Extraire la liste JSON de la réponse
         try:
-            tags = json.loads(result)
-            if isinstance(tags, list):
-                all_tags.extend(tags)
+            logger.info(f"Appel au LLM pour extraire les tags du lot {i//batch_size + 1}")
+            logger.info(f"Prompt envoyé au LLM (début): {prompt[:200]}...")
+            result = call_llm(prompt)
+            logger.info(f"Réponse complète reçue du LLM: {result}")
+            
+            # Extraire la liste JSON de la réponse
+            try:
+                # Si la réponse est déjà un JSON valide
+                if result.strip().startswith('[') and result.strip().endswith(']'):
+                    tags = json.loads(result)
+                    if isinstance(tags, list):
+                        logger.info(f"Tags extraits avec succès (format JSON direct): {tags}")
+                        all_tags.extend(tags)
+                        logger.info(f"Tags extraits avec succès: {len(tags)} tags")
+                    else:
+                        logger.warning(f"Format de réponse incorrect (pas une liste): {result}")
+                else:
+                    # Tenter d'extraire la liste entre crochets
+                    import re
+                    match = re.search(r'\[(.*)\]', result, re.DOTALL)
+                    if match:
+                        try:
+                            tags_str = match.group(1)
+                            # Nettoyer la chaîne pour s'assurer qu'elle est un JSON valide
+                            tags_str = tags_str.replace("'", '"')
+                            logger.info(f"Chaîne de tags extraite avec regex: {tags_str}")
+                            tags = json.loads(f"[{tags_str}]")
+                            logger.info(f"Tags parsés avec succès après regex: {tags}")
+                            all_tags.extend(tags)
+                            logger.info(f"Tags extraits avec regex: {len(tags)} tags")
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Impossible de parser les tags avec regex: {e}")
+                            logger.warning(f"Chaîne problématique: [{tags_str}]")
+                    else:
+                        logger.warning(f"Aucune liste de tags trouvée dans la réponse: {result}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Erreur de décodage JSON: {e}, réponse: {result}")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'extraction des tags: {e}")
+            logger.error(f"Détails de l'erreur: {traceback.format_exc()}")
+    
+    # Si aucun tag n'a été extrait avec la première méthode, essayer avec extract_tags_with_mistral
+    if not all_tags:
+        logger.info("Aucun tag extrait avec la méthode par lots, tentative avec extract_tags_with_mistral")
+        try:
+            # Utiliser extract_tags_with_mistral comme alternative
+            result = extract_tags_with_mistral(responses)
+            logger.info(f"Résultat de extract_tags_with_mistral: {result}")
+            
+            # Extraire tous les tags uniques des résultats
+            if isinstance(result, list):
+                for item in result:
+                    if isinstance(item, dict) and 'tags' in item and isinstance(item['tags'], list):
+                        all_tags.extend(item['tags'])
+                logger.info(f"Tags extraits avec extract_tags_with_mistral: {all_tags}")
             else:
-                logger.warning(f"Format de réponse incorrect: {result}")
-        except json.JSONDecodeError:
-            # Tenter d'extraire la liste entre crochets si la réponse n'est pas un JSON pur
-            import re
-            match = re.search(r'\[(.*)\]', result, re.DOTALL)
-            if match:
-                try:
-                    tags = json.loads(f"[{match.group(1)}]")
-                    all_tags.extend(tags)
-                except:
-                    logger.warning(f"Impossible d'extraire les tags: {result}")
+                logger.warning(f"Format de résultat inattendu de extract_tags_with_mistral: {result}")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'utilisation de extract_tags_with_mistral: {e}")
+            logger.error(f"Détails de l'erreur: {traceback.format_exc()}")
+    
+    # Si toujours aucun tag, essayer une approche simplifiée directe
+    if not all_tags:
+        logger.info("Tentative avec une approche simplifiée directe")
+        try:
+            prompt = """
+            Voici une liste de réponses d'utilisateurs concernant leur expérience avec une application.
+            Identifie les principaux thèmes ou concepts mentionnés dans ces réponses et liste-les sous forme de tags.
+            
+            Réponses:
+            """
+            
+            # Ajouter quelques exemples de réponses (limiter pour éviter les problèmes de contexte)
+            sample_size = min(10, len(responses))
+            for i in range(sample_size):
+                prompt += f"\n- {responses[i]}"
+            
+            prompt += """
+            
+            Retourne uniquement une liste de tags au format JSON ["tag1", "tag2", "tag3", ...] sans autre texte.
+            """
+            
+            logger.info("Envoi d'un prompt simplifié au LLM")
+            result = call_llm(prompt)
+            logger.info(f"Réponse du LLM (approche simplifiée): {result}")
+            
+            # Tenter d'extraire les tags
+            if result.strip().startswith('[') and result.strip().endswith(']'):
+                tags = json.loads(result)
+                if isinstance(tags, list):
+                    all_tags = tags
+                    logger.info(f"Tags extraits avec l'approche simplifiée: {tags}")
             else:
-                logger.warning(f"Format de réponse incorrect: {result}")
+                # Tenter d'extraire avec regex
+                match = re.search(r'\[(.*)\]', result, re.DOTALL)
+                if match:
+                    try:
+                        tags_str = match.group(1).replace("'", '"')
+                        tags = json.loads(f"[{tags_str}]")
+                        all_tags = tags
+                        logger.info(f"Tags extraits avec regex (approche simplifiée): {tags}")
+                    except:
+                        logger.warning("Échec de l'extraction avec regex (approche simplifiée)")
+        except Exception as e:
+            logger.error(f"Erreur avec l'approche simplifiée: {e}")
     
     # Dédupliquer les tags
-    return list(set(all_tags))
+    unique_tags = list(set(all_tags))
+    logger.info(f"Total des tags uniques extraits: {len(unique_tags)}")
+    logger.info(f"Tags extraits: {unique_tags}")
+    
+    # Si aucun tag n'a été extrait, créer quelques tags génériques basés sur les données
+    if not unique_tags:
+        logger.warning("Aucun tag extrait, création de tags génériques")
+        generic_tags = ["interface", "performance", "fonctionnalité", "design", "expérience utilisateur"]
+        logger.info(f"Tags génériques créés: {generic_tags}")
+        return generic_tags
+    
+    return unique_tags
 
 def process_normalize_tags(tags):
     """

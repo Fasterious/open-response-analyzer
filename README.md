@@ -24,6 +24,10 @@ Une application minimaliste et efficace pour analyser des réponses ouvertes en 
 - Exportation des résultats en CSV et JSON
 - Analyse rapide de réponses individuelles
 
+## 📖 Documentation
+
+Pour une explication technique détaillée du workflow et du fonctionnement interne de l'application, consultez le fichier [DOCUMENTATION.md](DOCUMENTATION.md).
+
 ## 🛠 Prérequis
 
 - Python 3.8 ou version ultérieure
