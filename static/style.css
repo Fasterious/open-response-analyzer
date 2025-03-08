@@ -77,20 +77,6 @@ body {
     background-color: rgba(0, 123, 255, 0.1);
 }
 
-.tag-count {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    line-height: 1;
-    color: #fff;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.25rem;
-    background-color: #17a2b8;
-}
-
 /* Styles pour les tableaux de données */
 .table-responsive {
     max-height: 600px;
@@ -107,13 +93,6 @@ body {
 
 .table td {
     vertical-align: middle;
-}
-
-/* Styles pour les synthèses */
-#tagSummaryContent {
-    padding: 0.5rem;
-    line-height: 1.6;
-    text-align: justify;
 }
 
 /* Styles pour les formulaires */
@@ -134,34 +113,10 @@ body {
     box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
-/* Styles pour les réponses associées aux tags */
-.response-item {
-    margin-bottom: 0.5rem;
-    padding: 0.75rem;
-    border-radius: 0.25rem;
-    border: 1px solid rgba(0, 0, 0, 0.125);
-    background-color: #fff;
-}
-
-.response-item:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
 /* Styles pour les chargements */
 .spinner-border {
     width: 3rem;
     height: 3rem;
-}
-
-/* Styles pour les sections d'exportation */
-.export-section {
-    margin-top: 1rem;
-}
-
-/* Styles pour la section d'analyse individuelle */
-.container.mt-5 {
-    max-width: 900px;
-    margin-top: 2rem !important;
 }
 
 /* Styles responsive */
@@ -195,10 +150,6 @@ body {
     
     .card-body {
         padding: 0.75rem;
-    }
-    
-    .container.mt-5 {
-        padding: 0 1rem;
     }
     
     .btn {
@@ -240,107 +191,8 @@ body {
     color: var(--primary-color);
 }
 
-/* File upload zone */
-.upload-zone {
-    border: 2px dashed #ccc;
-    border-radius: 8px;
-    padding: 1rem;
-    text-align: center;
-    transition: all var(--transition-speed);
-    cursor: pointer;
-}
-
-.upload-zone .display-6 {
-    font-size: 2rem;
-    line-height: 1;
-    margin-bottom: 0.5rem;
-}
-
-.upload-zone p {
-    margin-bottom: 0.25rem;
-}
-
-.upload-zone .btn-sm {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-}
-
-.upload-zone:hover, .upload-zone.dragover {
-    border-color: var(--primary-color);
-    background-color: rgba(26, 115, 232, 0.05);
-}
-
-/* Results section */
-.results-section {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.5s ease-out;
-}
-
-.results-section.visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Tags */
-.tag {
-    background-color: #e8f0fe;
-    color: var(--primary-color);
-    padding: 0.3rem 0.8rem;
-    border-radius: 16px;
-    font-size: 0.9rem;
-    margin: 0.2rem;
-    display: inline-block;
-    transition: all var(--transition-speed);
-}
-
-.tag:hover {
-    background-color: #d2e3fc;
-    transform: scale(1.05);
-}
-
-/* Loading spinner */
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid var(--primary-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
+/* Animation pour le spinner */
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-/* Styles pour l'affichage JSON */
-.json-view {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    font-size: 0.85rem;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #333;
-}
-
-.json-view .json-key {
-    color: #0550ae;
-    font-weight: 500;
-}
-
-.json-view .json-string {
-    color: #22863a;
-}
-
-.json-view .json-number {
-    color: #e36209;
-}
-
-.json-view .json-boolean {
-    color: #005cc5;
-}
-
-.json-view .json-null {
-    color: #6a737d;
 } 

@@ -38,95 +38,15 @@
                 <div class="card">
                     <div class="card-header bg-white">
                         <h5 class="card-title mb-0">
-                            <i class="bi bi-upload me-2"></i>
-                            Importation
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="uploadForm" enctype="multipart/form-data">
-                            <div class="upload-zone mb-2" id="dropZone">
-                                <i class="bi bi-cloud-upload display-6 mb-2"></i>
-                                <p class="mb-1">Glissez votre fichier ici</p>
-                                <p class="text-muted small mb-2">ou</p>
-                                <input type="file" class="form-control" id="file" name="file" accept=".csv,.json,.txt" hidden>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.getElementById('file').click()">
-                                    Choisir un fichier
-                                </button>
-                                <div class="form-text mt-1 small">Formats acceptés: CSV, JSON, TXT</div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100" id="analyzeBtn" disabled>
-                                <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
-                                Analyser avec Mistral
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary w-100 mt-2" id="testBtn" onclick="testWorkflow()">
-                                <i class="bi bi-lightning-fill me-2"></i>
-                                Tester avec données d'exemple
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-header bg-white">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-download me-2"></i>
-                            Exportation
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-outline-primary" id="exportCsvBtn" onclick="exportResults('csv')" disabled>
-                                <i class="bi bi-file-earmark-spreadsheet me-2"></i>
-                                Exporter en CSV
-                            </button>
-                            <button class="btn btn-outline-primary" id="exportJsonBtn" onclick="exportResults('json')" disabled>
-                                <i class="bi bi-file-earmark-code me-2"></i>
-                                Exporter en JSON
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section d'analyse individuelle -->
-                <div class="card mt-3">
-                    <div class="card-header bg-white">
-                        <h5 class="card-title mb-0">
                             <i class="bi bi-lightning-fill me-2"></i>
-                            Analyse rapide
+                            Test avec données d'exemple
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form id="responseForm">
-                            <div class="mb-3">
-                                <label for="responseText" class="form-label">Réponse à analyser</label>
-                                <textarea class="form-control" id="responseText" rows="3" placeholder="Saisissez la réponse à analyser..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="singlePrompt" class="form-label">Prompt personnalisé</label>
-                                <textarea class="form-control" id="singlePrompt" rows="2" placeholder="Laissez vide pour utiliser le prompt par défaut"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">
-                                <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
-                                <i class="bi bi-robot me-2"></i>
-                                Analyser avec Mistral
-                            </button>
-                        </form>
-
-                        <!-- Résultats de l'analyse individuelle -->
-                        <div id="singleResultCard" class="mt-3 d-none">
-                            <div class="card bg-light">
-                                <div class="card-body p-2">
-                                    <div class="mb-2">
-                                        <label class="form-label fw-bold mb-1">Réponse :</label>
-                                        <p id="originalResponse" class="mb-2 text-muted"></p>
-                                    </div>
-                                    <div>
-                                        <label class="form-label fw-bold mb-1">Analyse :</label>
-                                        <pre id="analysisResult" class="mb-0 bg-white p-2 rounded" style="font-size: 0.875rem;"></pre>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <button type="button" class="btn btn-primary w-100" id="testBtn" onclick="testWorkflow()">
+                            <i class="bi bi-lightning-fill me-2"></i>
+                            Tester avec données d'exemple
+                        </button>
                     </div>
                 </div>
             </div>
@@ -159,7 +79,7 @@
                             </div>
                             <div id="noTagsContent" class="text-center text-muted py-5">
                                 <i class="bi bi-cloud-upload display-1 mb-3"></i>
-                                <h5>Importez et analysez un fichier pour voir les tags extraits</h5>
+                                <h5>Cliquez sur "Tester avec données d'exemple" pour voir les tags extraits</h5>
                             </div>
                             <div id="loadingTags" class="text-center py-5 d-none">
                                 <div class="spinner-border text-primary mb-3" role="status">
@@ -195,7 +115,8 @@
                                         <tr>
                                             <th>#</th>
                                             <th>Réponse</th>
-                                            <th>Tags</th>
+                                            <th>Tags Originaux</th>
+                                            <th>Tags Normalisés</th>
                                         </tr>
                                     </thead>
                                     <tbody>

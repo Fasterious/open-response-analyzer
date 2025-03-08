@@ -1,402 +1,411 @@
 // Application JavaScript pour l'Analyseur de Réponses Ouvertes
 
-// Fonction globale pour afficher les résultats
-function displayResults(data) {
-    if (!data.success || !data.results || !data.results.length) {
-        showAlert('Aucun résultat à afficher', 'warning');
-        return;
+// Fonction utilitaire pour récupérer un élément par son ID
+function getElement(id) {
+    const element = document.getElementById(id);
+    if (!element) console.warn(`Élément avec l'ID ${id} non trouvé`);
+    return element;
+}
+
+// Afficher l'indicateur de chargement global
+function showLoading(message) {
+    // Créer ou récupérer l'élément de chargement global
+    let loadingElement = getElement('globalLoading');
+    if (!loadingElement) {
+        loadingElement = createGlobalLoadingElement();
     }
-
-    // Afficher les résultats dans l'onglet "Données"
-    const dataContent = document.getElementById('dataContent');
-    if (!dataContent) {
-        console.error("Élément dataContent non trouvé");
-        showAlert("Erreur lors de l'affichage des résultats: élément dataContent non trouvé", "danger");
-        return;
-    }
     
-    dataContent.innerHTML = `
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Réponse</th>
-                        <th>Tags Originaux</th>
-                        <th>Tags Normalisés</th>
-                        <th>Analyse</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${data.results.map(result => `
-                        <tr>
-                            <td>${result.id}</td>
-                            <td>${escapeHtml(result.response)}</td>
-                            <td>${formatTags(result.original_tags || [])}</td>
-                            <td>${formatTags(result.normalized_tags || [], 'bg-success')}</td>
-                            <td>${formatAnalysis(result.analysis)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="text-center mt-4">
-            <button class="btn btn-success" onclick="showSynthesisTab()">
-                <i class="bi bi-journal-text me-2"></i>Voir les synthèses
-            </button>
-        </div>
-    `;
-
-    // Masquer le message "pas de données"
-    const noDataContent = document.querySelector('#data .text-center.text-muted.py-5');
-    if (noDataContent) {
-        noDataContent.style.display = 'none';
-    }
-
-    // Afficher les tags dans l'onglet "Tags"
-    displayTagsFromResults(data.results, data.tag_mapping, data.tag_summaries);
+    // Mettre à jour le message et afficher
+    const messageElement = loadingElement.querySelector('.loading-message');
+    if (messageElement) messageElement.textContent = message || 'Chargement en cours...';
     
-    // Afficher les synthèses dans l'onglet "Synthèses"
-    displaySynthesesFromResults(data.tag_summaries);
+    loadingElement.classList.remove('d-none');
+}
 
-    // Activer les boutons d'exportation
-    const exportCsvBtn = document.getElementById('exportCsvBtn');
-    const exportJsonBtn = document.getElementById('exportJsonBtn');
-    
-    if (exportCsvBtn) exportCsvBtn.disabled = false;
-    if (exportJsonBtn) exportJsonBtn.disabled = false;
-    
-    // Basculer vers l'onglet "Synthèses" si des synthèses sont disponibles
-    if (data.tag_summaries && Object.keys(data.tag_summaries).length > 0) {
-        showSynthesisTab();
-    } else {
-        // Sinon, basculer vers l'onglet "Données"
-        const dataTab = document.getElementById('data-tab');
-        if (dataTab) {
-            const tabInstance = new bootstrap.Tab(dataTab);
-            tabInstance.show();
-        }
+// Masquer l'indicateur de chargement global
+function hideLoading() {
+    const loadingElement = getElement('globalLoading');
+    if (loadingElement) {
+        loadingElement.classList.add('d-none');
     }
 }
 
-// Fonction globale pour afficher les alertes
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.row'));
+// Créer l'élément de chargement global
+function createGlobalLoadingElement() {
+    // Créer l'élément de chargement s'il n'existe pas
+    const loadingElement = document.createElement('div');
+    loadingElement.id = 'globalLoading';
+    loadingElement.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75';
+    loadingElement.style.zIndex = '9999';
     
-    // Auto-dismiss après 5 secondes
+    const loadingContent = document.createElement('div');
+    loadingContent.className = 'text-center p-4 bg-white rounded shadow';
+    
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner-border text-primary mb-3';
+    spinner.setAttribute('role', 'status');
+    
+    const spinnerText = document.createElement('span');
+    spinnerText.className = 'visually-hidden';
+    spinnerText.textContent = 'Chargement...';
+    
+    const message = document.createElement('div');
+    message.className = 'loading-message';
+    message.textContent = 'Chargement en cours...';
+    
+    spinner.appendChild(spinnerText);
+    loadingContent.appendChild(spinner);
+    loadingContent.appendChild(message);
+    loadingElement.appendChild(loadingContent);
+    
+    // Ajouter au document
+    document.body.appendChild(loadingElement);
+    
+    // Cacher par défaut
+    loadingElement.classList.add('d-none');
+    
+    return loadingElement;
+}
+
+// Créer l'élément de chargement global au chargement de la page
+document.addEventListener('DOMContentLoaded', createGlobalLoadingElement);
+
+// Fonction pour afficher les résultats
+function displayResults(data) {
+    console.log("Affichage des résultats:", data);
+    
+    if (!data || !data.results || !Array.isArray(data.results)) {
+        console.error("Format de données invalide:", data);
+        showAlert("Format de données invalide", "danger");
+        return;
+    }
+    
+    // Afficher les tags
+    displayTagsFromResults(data.results, data.tag_mapping, data.tag_summaries);
+    
+    // Afficher les synthèses
+    if (data.tag_summaries) {
+        displaySynthesesFromResults(data.tag_summaries);
+    }
+    
+    // Afficher les données brutes
+    const dataTable = getElement('dataTable');
+    if (dataTable) {
+        const tbody = dataTable.querySelector('tbody');
+        if (tbody) {
+            tbody.innerHTML = '';
+            
+            data.results.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // ID
+                const idCell = document.createElement('td');
+                idCell.textContent = item.id;
+                row.appendChild(idCell);
+                
+                // Réponse
+                const responseCell = document.createElement('td');
+                responseCell.textContent = item.response;
+                row.appendChild(responseCell);
+                
+                // Tags originaux (colonne séparée)
+                const originalTagsCell = document.createElement('td');
+                if (item.original_tags && item.original_tags.length > 0) {
+                    originalTagsCell.innerHTML = formatTags(item.original_tags, 'bg-secondary');
+                } else {
+                    originalTagsCell.innerHTML = '<span class="text-muted">Aucun tag</span>';
+                }
+                row.appendChild(originalTagsCell);
+                
+                // Tags normalisés (colonne séparée)
+                const normalizedTagsCell = document.createElement('td');
+                if (item.normalized_tags && item.normalized_tags.length > 0) {
+                    normalizedTagsCell.innerHTML = formatTags(item.normalized_tags, 'bg-primary');
+                } else {
+                    normalizedTagsCell.innerHTML = '<span class="text-muted">Aucun tag</span>';
+                }
+                row.appendChild(normalizedTagsCell);
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // Masquer le message "pas de données" et afficher le tableau
+        const noDataContent = getElement('noDataContent');
+        if (noDataContent) noDataContent.style.display = 'none';
+        dataTable.style.display = 'table';
+    }
+}
+
+// Fonction pour afficher une alerte
+function showAlert(message, type = 'info') {
+    // Créer l'élément d'alerte
+    const alertElement = document.createElement('div');
+    alertElement.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+    alertElement.style.zIndex = '9999';
+    alertElement.style.maxWidth = '80%';
+    
+    // Ajouter le contenu de l'alerte
+    alertElement.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+    `;
+    
+    // Ajouter au document
+    document.body.appendChild(alertElement);
+    
+    // Supprimer automatiquement après 5 secondes
     setTimeout(() => {
-        alertDiv.remove();
+        alertElement.classList.remove('show');
+        setTimeout(() => alertElement.remove(), 150);
     }, 5000);
 }
 
-// Fonction globale pour formater le JSON
+// Fonction pour formater un objet JSON en chaîne lisible
 function formatJSON(obj) {
-    const jsonString = JSON.stringify(obj, null, 2);
-    return jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
-        let cls = 'json-string';
-        if (/^"/.test(match)) {
-            if (/:$/.test(match)) {
-                cls = 'json-key';
-            }
-        } else if (/true|false/.test(match)) {
-            cls = 'json-boolean';
-        } else if (/null/.test(match)) {
-            cls = 'json-null';
-        } else {
-            cls = 'json-number';
-        }
-        return '<span class="' + cls + '">' + match + '</span>';
-    });
+    return JSON.stringify(obj, null, 2);
 }
 
-// Fonction globale pour échapper le HTML
+// Fonction pour échapper les caractères HTML
 function escapeHtml(text) {
-    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Fonction globale pour le test avec données d'exemple
+// Fonction pour tester le workflow avec les données d'exemple
 async function testWorkflow() {
-    console.log("Fonction testWorkflow appelée");
+    console.log("Test du workflow avec les données d'exemple");
     
     // Récupérer le bouton de test
-    const testBtn = document.getElementById('testBtn');
-    
-    if (!testBtn) {
-        console.error("Bouton de test non trouvé");
-        showAlert("Erreur: Bouton de test non trouvé", "danger");
-        return;
+    const testBtn = getElement('testBtn');
+    if (testBtn) {
+        // Sauvegarder le contenu original
+        const originalContent = testBtn.innerHTML;
+        
+        // Afficher le spinner
+        testBtn.innerHTML = `
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Test en cours...
+        `;
+        testBtn.disabled = true;
     }
     
-    // Afficher le spinner sur le bouton de test
-    const spinner = document.createElement('span');
-    spinner.className = 'spinner-border spinner-border-sm me-2';
-    spinner.setAttribute('role', 'status');
-    spinner.setAttribute('aria-hidden', 'true');
+    // Afficher les indicateurs de chargement
+    getElement('noTagsContent').style.display = 'none';
+    getElement('loadingTags').classList.remove('d-none');
     
-    const originalContent = testBtn.innerHTML;
-    testBtn.innerHTML = '';
-    testBtn.appendChild(spinner);
-    testBtn.appendChild(document.createTextNode('Test en cours...'));
-    testBtn.disabled = true;
+    getElement('noSummariesContent').style.display = 'none';
+    getElement('loadingSummaries').classList.remove('d-none');
     
-    // Désactiver le bouton d'analyse si présent
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    if (analyzeBtn) analyzeBtn.disabled = true;
-
-    // Afficher un message de chargement plus informatif
-    showLoading("Analyse des données d'exemple en cours...");
-
+    // Afficher un message de chargement global
+    showLoading("Test du workflow avec les données d'exemple...");
+    
     try {
-        console.log("Envoi de la requête test_workflow");
+        // Appeler l'API pour tester le workflow
         const response = await fetch('/test_workflow', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
-
-        console.log("Réponse reçue du serveur:", response.status);
         
         if (!response.ok) {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
-
-        const result = await response.json();
-        console.log("Données JSON reçues:", result);
         
-        if (result.error) {
-            throw new Error(result.error);
+        const data = await response.json();
+        console.log("Données reçues:", data);
+        
+        if (data.error) {
+            throw new Error(data.error);
         }
         
-        // Masquer le message de chargement
+        // Masquer les indicateurs de chargement
+        getElement('loadingTags').classList.add('d-none');
+        getElement('loadingSummaries').classList.add('d-none');
+        
+        // Masquer le message de chargement global
         hideLoading();
         
-        displayResults(result);
-        showAlert(`Test effectué avec succès ! ${result.results.length} réponses analysées.`, 'success');
+        // Afficher les résultats
+        displayResults(data);
+        
+        // Afficher un message de succès
+        showAlert("Test effectué avec succès !", "success");
+        
+        // Activer l'onglet de synthèse
+        showSynthesisTab();
     } catch (error) {
-        console.error('Erreur détaillée:', error);
-        // Masquer le message de chargement en cas d'erreur
+        console.error("Erreur lors du test:", error);
+        
+        // Masquer les indicateurs de chargement
+        getElement('loadingTags').classList.add('d-none');
+        getElement('loadingSummaries').classList.add('d-none');
+        getElement('noTagsContent').style.display = 'block';
+        getElement('noSummariesContent').style.display = 'block';
+        
+        // Masquer le message de chargement global
         hideLoading();
-        showAlert(`Erreur lors du test: ${error.message}`, 'danger');
+        
+        // Afficher un message d'erreur
+        showAlert(`Erreur lors du test: ${error.message}`, "danger");
     } finally {
-        // Restaurer le bouton
+        // Restaurer le bouton de test
+        const testBtn = getElement('testBtn');
         if (testBtn) {
-            testBtn.innerHTML = originalContent;
+            testBtn.innerHTML = `
+                <i class="bi bi-lightning-fill me-2"></i>
+                Tester avec données d'exemple
+            `;
             testBtn.disabled = false;
         }
-        
-        // Réactiver le bouton d'analyse si présent
-        if (analyzeBtn) {
-            const fileInput = document.getElementById('file');
-            if (fileInput) {
-                analyzeBtn.disabled = fileInput.files.length === 0;
-            }
-        }
     }
-}
-
-// Fonction pour formater l'analyse en texte structuré lisible
-function formatAnalysis(analysis) {
-    // Si l'analyse est une chaîne ou null, la retourner telle quelle
-    if (typeof analysis !== 'object' || analysis === null) {
-        return analysis || 'Aucune analyse disponible';
-    }
-    
-    // Si une erreur s'est produite
-    if (analysis.error) {
-        return `Erreur: ${analysis.error}`;
-    }
-    
-    // Si l'analyse est en texte brut
-    if (analysis.raw_analysis) {
-        return analysis.raw_analysis;
-    }
-    
-    // Construire un texte structuré à partir des champs communs
-    let formattedText = '';
-    
-    // Résumé
-    if (analysis.résumé || analysis.resume || analysis.summary) {
-        formattedText += `<strong>Résumé:</strong> ${analysis.résumé || analysis.resume || analysis.summary}<br><br>`;
-    }
-    
-    // Catégorisation
-    if (analysis.catégorisation || analysis.categorisation || analysis.categories || analysis.category) {
-        const categories = analysis.catégorisation || analysis.categorisation || analysis.categories || analysis.category;
-        if (typeof categories === 'string') {
-            formattedText += `<strong>Catégories:</strong> ${categories}<br><br>`;
-        } else if (Array.isArray(categories)) {
-            formattedText += `<strong>Catégories:</strong> ${categories.join(', ')}<br><br>`;
-        }
-    }
-    
-    // Niveau de satisfaction
-    if (analysis.satisfaction || analysis['niveau_de_satisfaction'] || analysis['satisfaction_level']) {
-        formattedText += `<strong>Niveau de satisfaction:</strong> ${analysis.satisfaction || analysis['niveau_de_satisfaction'] || analysis['satisfaction_level']}/5<br><br>`;
-    }
-    
-    // Priorité
-    if (analysis.priorité || analysis.priorite || analysis.priority) {
-        formattedText += `<strong>Priorité:</strong> ${analysis.priorité || analysis.priorite || analysis.priority}<br><br>`;
-    }
-    
-    // Suggestions
-    if (analysis.suggestions || analysis.améliorations || analysis.ameliorations || analysis.improvements) {
-        const suggestions = analysis.suggestions || analysis.améliorations || analysis.ameliorations || analysis.improvements;
-        formattedText += `<strong>Suggestions:</strong><br>`;
-        
-        if (typeof suggestions === 'string') {
-            formattedText += suggestions;
-        } else if (Array.isArray(suggestions)) {
-            formattedText += '<ul>';
-            suggestions.forEach(suggestion => {
-                formattedText += `<li>${suggestion}</li>`;
-            });
-            formattedText += '</ul>';
-        }
-    }
-    
-    // Si aucun champ standard n'a été trouvé, afficher le JSON formaté
-    if (!formattedText) {
-        return formatJSON(analysis);
-    }
-    
-    return formattedText;
 }
 
 // Fonction pour formater les tags
 function formatTags(tags, bgClass = 'bg-primary') {
-    if (!tags || tags.length === 0) {
-        return '<span class="text-muted">Aucun tag</span>';
-    }
-    
-    return tags.map(tag => 
-        `<span class="badge ${bgClass} me-1">${escapeHtml(tag)}</span>`
-    ).join(' ');
+    if (!tags || tags.length === 0) return '';
+    return tags.map(tag => `<span class="badge ${bgClass} me-1">${tag}</span>`).join(' ');
 }
 
-// Fonction pour formater les synthèses des tags
+// Fonction pour formater les synthèses de tags
 function formatTagSummaries(tagSummaries) {
     if (!tagSummaries || Object.keys(tagSummaries).length === 0) {
-        return '<span class="text-muted">Aucune synthèse disponible</span>';
+        return '<div class="text-muted">Aucune synthèse disponible</div>';
     }
     
-    let html = '<div class="tag-summaries">';
+    let html = '';
     
     for (const [tag, summary] of Object.entries(tagSummaries)) {
         html += `
-            <div class="card mb-2">
-                <div class="card-header py-1 bg-light">
-                    <span class="badge bg-success">${escapeHtml(tag)}</span>
-                    <span class="badge bg-secondary ms-1">${summary.nombre_utilisateurs} utilisateur(s)</span>
+            <div class="card mb-3">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">
+                        <span class="badge bg-primary me-2">${tag}</span>
+                        <small class="text-muted">${summary.nombre_utilisateurs || 0} utilisateurs</small>
+                    </h5>
                 </div>
-                <div class="card-body py-2">
-                    <p class="mb-1"><small>${escapeHtml(summary.synthèse)}</small></p>
-                    ${summary.verbatims && summary.verbatims.length > 0 ? 
-                        `<div class="verbatims">
-                            <small class="text-muted">Verbatims:</small>
-                            <ul class="mb-0">
-                                ${summary.verbatims.map(verbatim => 
-                                    `<li><small><em>"${escapeHtml(verbatim)}"</em></small></li>`
-                                ).join('')}
+                <div class="card-body">
+                    <p>${summary.synthèse || 'Aucune synthèse disponible'}</p>
+                    
+                    ${summary.verbatims && summary.verbatims.length > 0 ? `
+                        <div class="mt-3">
+                            <h6>Verbatims:</h6>
+                            <ul class="list-group">
+                                ${summary.verbatims.map(verbatim => `
+                                    <li class="list-group-item">
+                                        <i class="bi bi-quote me-2 text-muted"></i>
+                                        ${verbatim}
+                                    </li>
+                                `).join('')}
                             </ul>
-                        </div>` : 
-                        ''
-                    }
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
     }
     
-    html += '</div>';
     return html;
 }
 
-// Fonction pour afficher les tags extraits dans l'onglet "Tags"
+// Fonction pour afficher les tags à partir des résultats
 function displayTagsFromResults(results, tagMapping = null, tagSummaries = null) {
-    const tagsContent = document.getElementById('tagsContent');
+    console.log("Affichage des tags à partir des résultats:", results);
+    console.log("Mapping des tags:", tagMapping);
+    
+    // Récupérer le conteneur des tags
+    const tagsContent = getElement('tagsContent');
     if (!tagsContent) {
-        console.error("Élément tagsContent non trouvé");
-        return;
-    }
-    
-    // Collecter tous les tags uniques (originaux et normalisés)
-    const originalTags = {};
-    const normalizedTags = {};
-    
-    results.forEach(result => {
-        // Traiter les tags originaux
-        if (result.original_tags && result.original_tags.length > 0) {
-            result.original_tags.forEach(tag => {
-                if (!originalTags[tag]) {
-                    originalTags[tag] = 0;
-                }
-                originalTags[tag]++;
-            });
-        }
-        
-        // Traiter les tags normalisés
-        if (result.normalized_tags && result.normalized_tags.length > 0) {
-            result.normalized_tags.forEach(tag => {
-                if (!normalizedTags[tag]) {
-                    normalizedTags[tag] = 0;
-                }
-                normalizedTags[tag]++;
-            });
-        }
-    });
-    
-    // Si aucun tag n'a été trouvé
-    if (Object.keys(originalTags).length === 0 && Object.keys(normalizedTags).length === 0) {
-        const noTagsContent = document.getElementById('noTagsContent');
-        if (noTagsContent) {
-            noTagsContent.classList.remove('d-none');
-        }
+        console.error("Conteneur des tags non trouvé");
         return;
     }
     
     // Masquer le message "pas de tags"
-    const noTagsContent = document.getElementById('noTagsContent');
-    if (noTagsContent) {
-        noTagsContent.classList.add('d-none');
-    }
+    const noTagsContent = getElement('noTagsContent');
+    if (noTagsContent) noTagsContent.style.display = 'none';
     
-    // Trier les tags par fréquence (décroissant)
-    const sortedOriginalTags = Object.keys(originalTags).sort((a, b) => originalTags[b] - originalTags[a]);
-    const sortedNormalizedTags = Object.keys(normalizedTags).sort((a, b) => normalizedTags[b] - normalizedTags[a]);
+    // Collecter tous les tags normalisés et leur fréquence
+    const tagFrequency = {};
+    let totalResponses = 0;
     
-    // Construire le contenu HTML
-    let html = '';
+    results.forEach(item => {
+        totalResponses++;
+        if (item.normalized_tags && Array.isArray(item.normalized_tags)) {
+            item.normalized_tags.forEach(tag => {
+                tagFrequency[tag] = (tagFrequency[tag] || 0) + 1;
+            });
+        }
+    });
+    
+    // Trier les tags par fréquence (du plus fréquent au moins fréquent)
+    const sortedTags = Object.entries(tagFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .map(([tag, count]) => ({ tag, count }));
+    
+    // Calculer les pourcentages
+    sortedTags.forEach(item => {
+        item.percentage = Math.round((item.count / totalResponses) * 100);
+    });
+    
+    // Générer le HTML pour le résumé des tags
+    let tagsHtml = `
+        <h5 class="mb-4">Tags identifiés (${sortedTags.length})</h5>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="tag-summary mb-4">
+                    ${sortedTags.map(item => `
+                        <div class="tag-item mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-primary">${item.tag}</span>
+                                <span class="text-muted small">${item.count} réponses (${item.percentage}%)</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar" role="progressbar" style="width: ${item.percentage}%;" 
+                                    aria-valuenow="${item.percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h6 class="card-title mb-0">Répartition des tags</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="tagsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
     // Afficher le mapping des tags si disponible
     if (tagMapping && Object.keys(tagMapping).length > 0) {
-        html += `
-            <div class="card mb-4">
+        tagsHtml += `
+            <div class="card mt-4">
                 <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">Normalisation des Tags</h5>
+                    <h5 class="card-title mb-0">Normalisation des tags</h5>
                 </div>
                 <div class="card-body">
-                    <p class="card-text">Voici comment les tags ont été normalisés :</p>
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Tag Normalisé</th>
-                                    <th>Tags Originaux</th>
+                                    <th>Tag normalisé</th>
+                                    <th>Tags originaux</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${Object.entries(tagMapping).map(([normalized, originals]) => `
+                                ${Object.entries(tagMapping).map(([normalizedTag, originalTags]) => `
                                     <tr>
-                                        <td><span class="badge bg-success">${escapeHtml(normalized)}</span></td>
-                                        <td>${originals.map(tag => `<span class="badge bg-primary me-1">${escapeHtml(tag)}</span>`).join(' ')}</td>
+                                        <td><span class="badge bg-primary">${normalizedTag}</span></td>
+                                        <td>${Array.isArray(originalTags) ? originalTags.map(tag => 
+                                            `<span class="badge bg-secondary me-1">${tag}</span>`).join(' ') : ''}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -407,1015 +416,77 @@ function displayTagsFromResults(results, tagMapping = null, tagSummaries = null)
         `;
     }
     
-    // Afficher les tags normalisés
-    html += `
-        <div class="card mb-4">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Tags Normalisés</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex flex-wrap gap-2">
-                    ${sortedNormalizedTags.map(tag => 
-                        `<div class="badge bg-success fs-6 p-2">
-                            ${escapeHtml(tag)} 
-                            <span class="badge bg-light text-dark ms-1">${normalizedTags[tag]}</span>
-                        </div>`
-                    ).join('')}
-                </div>
-            </div>
-        </div>
-    `;
+    // Mettre à jour le contenu
+    tagsContent.innerHTML = tagsHtml;
     
-    // Afficher les tags originaux
-    html += `
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Tags Originaux</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex flex-wrap gap-2">
-                    ${sortedOriginalTags.map(tag => 
-                        `<div class="badge bg-primary fs-6 p-2">
-                            ${escapeHtml(tag)} 
-                            <span class="badge bg-light text-dark ms-1">${originalTags[tag]}</span>
-                        </div>`
-                    ).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-    
-    tagsContent.innerHTML = html;
+    // Créer le graphique si des tags sont disponibles
+    if (sortedTags.length > 0) {
+        const ctx = document.getElementById('tagsChart');
+        if (ctx) {
+            // Limiter à 10 tags maximum pour le graphique
+            const chartData = sortedTags.slice(0, 10);
+            
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: chartData.map(item => item.tag),
+                    datasets: [{
+                        data: chartData.map(item => item.count),
+                        backgroundColor: [
+                            '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0',
+                            '#4895ef', '#560bad', '#b5179e', '#f15bb5', '#00b4d8'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
 }
 
-// Fonction pour afficher les synthèses dans l'onglet dédié
+// Fonction pour afficher les synthèses à partir des résultats
 function displaySynthesesFromResults(tagSummaries) {
-    const synthesisContent = document.getElementById('synthesisContent');
-    if (!synthesisContent) {
-        console.error("Élément synthesisContent non trouvé");
-        return;
-    }
+    console.log("Affichage des synthèses:", tagSummaries);
     
-    // Si aucune synthèse n'est disponible
-    if (!tagSummaries || Object.keys(tagSummaries).length === 0) {
-        synthesisContent.innerHTML = `
-            <div class="text-center text-muted py-5">
-                <i class="bi bi-exclamation-circle fs-1"></i>
-                <p class="mt-3">Aucune synthèse disponible</p>
-            </div>
-        `;
+    // Récupérer le conteneur des synthèses
+    const synthesisContent = getElement('synthesisContent');
+    if (!synthesisContent) {
+        console.error("Conteneur des synthèses non trouvé");
         return;
     }
     
     // Masquer le message "pas de synthèses"
-    const noSynthesisContent = document.getElementById('noSummariesContent');
-    if (noSynthesisContent) {
-        noSynthesisContent.classList.add('d-none');
-    }
+    const noSummariesContent = getElement('noSummariesContent');
+    if (noSummariesContent) noSummariesContent.style.display = 'none';
     
-    // Trier les tags par nombre d'utilisateurs (décroissant)
-    const sortedTags = Object.keys(tagSummaries).sort((a, b) => 
-        tagSummaries[b].nombre_utilisateurs - tagSummaries[a].nombre_utilisateurs
-    );
-    
-    // Construire le contenu HTML
+    // Générer le HTML pour les synthèses
     let html = `
-        <div class="row">
-            <div class="col-md-12 mb-4">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <h5 class="card-title mb-0">Résumé des retours utilisateurs</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-text">
-                            Voici une synthèse des retours utilisateurs regroupés par thématique.
-                            Chaque synthèse inclut le nombre d'utilisateurs concernés et des verbatims représentatifs.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <h5 class="mb-4">Synthèses par tag (${Object.keys(tagSummaries).length})</h5>
         
-        <div class="row">
-            ${sortedTags.map(tag => {
-                const summary = tagSummaries[tag];
-                return `
-                    <div class="col-md-6 mb-4">
-                        <div class="card h-100">
-                            <div class="card-header py-2 bg-light">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="badge bg-success fs-5 p-2">${escapeHtml(tag)}</span>
-                                    <span class="badge bg-secondary">${summary.nombre_utilisateurs} utilisateur(s)</span>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">${escapeHtml(summary.synthèse)}</p>
-                                ${summary.verbatims && summary.verbatims.length > 0 ? 
-                                    `<div class="verbatims mt-3">
-                                        <h6 class="text-muted">Verbatims:</h6>
-                                        <ul class="list-group list-group-flush">
-                                            ${summary.verbatims.map(verbatim => 
-                                                `<li class="list-group-item bg-light fst-italic">"${escapeHtml(verbatim)}"</li>`
-                                            ).join('')}
-                                        </ul>
-                                    </div>` : 
-                                    ''
-                                }
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('')}
+        <div class="syntheses-container">
+            ${formatTagSummaries(tagSummaries)}
         </div>
     `;
     
+    // Mettre à jour le contenu
     synthesisContent.innerHTML = html;
 }
 
-// Fonction pour basculer vers l'onglet "Synthèses"
+// Fonction pour afficher l'onglet de synthèse
 function showSynthesisTab() {
     const synthesisTab = document.getElementById('synthesis-tab');
     if (synthesisTab) {
         const tabInstance = new bootstrap.Tab(synthesisTab);
         tabInstance.show();
     }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Fonction utilitaire pour vérifier si un élément existe
-    function getElement(id) {
-        const element = document.getElementById(id);
-        return element;
-    }
-
-    // Éléments DOM
-    const uploadForm = getElement('uploadForm');
-    const fileInput = getElement('file');
-    const fileInfo = getElement('fileInfo');
-    const rowCount = getElement('rowCount');
-    const columnList = getElement('columnList');
-    const columnSelectContainer = getElement('columnSelectContainer');
-    const columnSelect = getElement('columnSelect');
-    const processBtn = getElement('processBtn');
-    const exportCsvBtn = getElement('exportCsvBtn');
-    const exportJsonBtn = getElement('exportJsonBtn');
-    const analyzeBtn = getElement('analyzeBtn');
-    const testBtn = getElement('testBtn');
-    
-    // Éléments pour l'analyse individuelle
-    const responseForm = getElement('responseForm');
-    const responseText = getElement('responseText');
-    const singlePrompt = getElement('singlePrompt');
-    const singleResultCard = getElement('singleResultCard');
-    const originalResponse = getElement('originalResponse');
-    const analysisResult = getElement('analysisResult');
-    
-    console.log("Initialisation des éléments DOM");
-    console.log("Bouton de test trouvé:", testBtn);
-
-    if (!testBtn) {
-        console.error("Le bouton de test n'a pas été trouvé dans le DOM");
-        return;
-    }
-
-    // Onglets de résultats
-    const loadingTags = getElement('loadingTags');
-    const loadingSummaries = getElement('loadingSummaries');
-    const tagsContent = getElement('tagsContent');
-    const summariesContent = getElement('summariesContent');
-    const dataContent = getElement('dataContent');
-    const noTagsContent = getElement('noTagsContent');
-    const noSummariesContent = getElement('noSummariesContent');
-    const noDataContent = getElement('noDataContent');
-    
-    // Éléments pour les synthèses
-    const tagSelector = getElement('tagSelector');
-    const tagSummaryContainer = getElement('tagSummaryContainer');
-    const currentTagName = getElement('currentTagName');
-    const tagSummaryContent = getElement('tagSummaryContent');
-    const tagResponsesList = getElement('tagResponsesList');
-    
-    // Éléments pour le modal de configuration
-    const configForm = getElement('configForm');
-    const providerSelect = getElement('provider');
-    const modelInput = getElement('model');
-    const apiKeyInput = getElement('apiKey');
-    const endpointInput = getElement('endpoint');
-    const saveConfigBtn = getElement('saveConfigBtn');
-    
-    // Variables globales
-    let analysisResults = null;
-    let currentColumnName = 'response';
-    let tagsChart = null;
-    
-    // Gestion du formulaire d'upload
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            console.log("Soumission du formulaire d'upload");
-            
-            if (!fileInput.files[0]) {
-                showAlert('Veuillez sélectionner un fichier', 'danger');
-                return;
-            }
-            
-            console.log("Fichier à envoyer:", fileInput.files[0].name, "Taille:", fileInput.files[0].size, "Type:", fileInput.files[0].type);
-            
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            
-            // Afficher le spinner
-            const spinner = analyzeBtn.querySelector('.spinner-border');
-            if (spinner) {
-                spinner.classList.remove('d-none');
-            }
-            analyzeBtn.disabled = true;
-            
-            // Afficher un indicateur de chargement
-            showLoading('Importation en cours...');
-            
-            // Envoyer le fichier au serveur
-            fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                console.log("Réponse du serveur:", response.status);
-                return response.json();
-            })
-            .then(data => {
-                hideLoading();
-                console.log("Données reçues du serveur:", data);
-                
-                // Masquer le spinner
-                const spinner = analyzeBtn.querySelector('.spinner-border');
-                if (spinner) {
-                    spinner.classList.add('d-none');
-                }
-                
-                if (data.success) {
-                    // Mettre à jour les informations du fichier
-                    if (rowCount) rowCount.textContent = data.rows;
-                    if (columnList) columnList.textContent = data.columns.join(', ');
-                    
-                    // Remplir la liste déroulante des colonnes
-                    if (columnSelect) {
-                        columnSelect.innerHTML = '';
-                        data.columns.forEach(column => {
-                            const option = document.createElement('option');
-                            option.value = column;
-                            option.textContent = column;
-                            
-                            // Sélectionner par défaut la colonne "response" si elle existe
-                            if (column.toLowerCase() === 'response' || column.toLowerCase() === 'réponse') {
-                                option.selected = true;
-                                currentColumnName = column;
-                            }
-                            
-                            columnSelect.appendChild(option);
-                        });
-                    }
-                    
-                    // Afficher les éléments d'information et le bouton de traitement
-                    if (fileInfo) fileInfo.classList.remove('d-none');
-                    
-                    if (columnSelectContainer && data.columns.length > 1) {
-                        columnSelectContainer.classList.remove('d-none');
-                    } else if (columnSelectContainer) {
-                        columnSelectContainer.classList.add('d-none');
-                    }
-                    
-                    // Gestion du changement de colonne
-                    if (columnSelect) {
-                        columnSelect.addEventListener('change', function() {
-                            currentColumnName = this.value;
-                            console.log(`Colonne sélectionnée: ${currentColumnName}`);
-                            
-                            // Activer le bouton de traitement
-                            if (processBtn) {
-                                processBtn.disabled = false;
-                            }
-                        });
-                    }
-                    
-                    // Afficher l'aperçu dans l'onglet Données
-                    updateDataTable(data.preview, null);
-                    if (dataContent) dataContent.classList.remove('d-none');
-                    if (noDataContent) noDataContent.classList.add('d-none');
-                    
-                    // Activer le bouton d'analyse
-                    if (analyzeBtn) {
-                        analyzeBtn.disabled = false;
-                        console.log("Bouton d'analyse activé");
-                        
-                        // Déclencher automatiquement l'analyse après l'upload
-                        console.log("Démarrage automatique de l'analyse après upload");
-                        
-                        // Afficher un message de chargement pour l'analyse
-                        showLoading('Analyse en cours avec Mistral...');
-                        
-                        fetch('/api/process', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                column: currentColumnName
-                            })
-                        })
-                        .then(response => {
-                            console.log("Réponse reçue du serveur:", response.status);
-                            if (!response.ok) {
-                                return response.json().then(data => {
-                                    throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`);
-                                });
-                            }
-                            return response.json();
-                        })
-                        .then(result => {
-                            hideLoading();
-                            console.log("Résultat de l'analyse:", result);
-                            
-                            if (result.success) {
-                                // Afficher les résultats
-                                displayResults(result);
-                                showAlert('Analyse terminée avec succès', 'success');
-                            } else {
-                                showAlert(`Erreur lors de l'analyse: ${result.error}`, 'danger');
-                            }
-                        })
-                        .catch(error => {
-                            hideLoading();
-                            console.error("Erreur détaillée lors de l'analyse:", error);
-                            showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
-                        });
-                    }
-                    
-                    showAlert(`Fichier importé avec succès: ${data.rows} lignes`, 'success');
-                } else {
-                    showAlert(`Erreur lors de l'importation: ${data.error}`, 'danger');
-                }
-            })
-            .catch(error => {
-                hideLoading();
-                console.error("Erreur lors de l'importation:", error);
-                
-                // Masquer le spinner
-                const spinner = analyzeBtn.querySelector('.spinner-border');
-                if (spinner) {
-                    spinner.classList.add('d-none');
-                }
-                analyzeBtn.disabled = false;
-                
-                showAlert(`Erreur lors de l'importation: ${error.message}`, 'danger');
-            });
-        });
-    }
-    
-    // Traitement des données
-    if (processBtn) {
-        processBtn.addEventListener('click', function() {
-            if (!currentColumnName) {
-                showAlert('Veuillez sélectionner une colonne à analyser', 'warning');
-                return;
-            }
-            
-            // Afficher les indicateurs de chargement
-            showLoading('Analyse en cours...');
-            if (loadingTags) loadingTags.classList.remove('d-none');
-            if (tagsContent) tagsContent.classList.add('d-none');
-            if (noTagsContent) noTagsContent.classList.add('d-none');
-            if (loadingSummaries) loadingSummaries.classList.remove('d-none');
-            if (summariesContent) summariesContent.classList.add('d-none');
-            if (noSummariesContent) noSummariesContent.classList.add('d-none');
-            
-            // Désactiver les boutons d'exportation pendant le traitement
-            if (exportCsvBtn) exportCsvBtn.disabled = true;
-            if (exportJsonBtn) exportJsonBtn.disabled = true;
-            
-            // Appeler l'API pour le traitement
-            fetch('/api/process', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    column: currentColumnName
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                hideLoading();
-                if (loadingTags) loadingTags.classList.add('d-none');
-                if (loadingSummaries) loadingSummaries.classList.add('d-none');
-                
-                if (data.success) {
-                    // Stocker les résultats
-                    analysisResults = data.results;
-                    
-                    // Mettre à jour les visualisations
-                    updateTagsVisualization(analysisResults);
-                    updateSummariesSection(analysisResults);
-                    updateDataTableWithTags(analysisResults);
-                    
-                    // Activer les boutons d'exportation
-                    if (exportCsvBtn) exportCsvBtn.disabled = false;
-                    if (exportJsonBtn) exportJsonBtn.disabled = false;
-                    
-                    showAlert('Analyse terminée avec succès', 'success');
-                } else {
-                    showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
-                    
-                    // Afficher les messages "aucun contenu"
-                    if (noTagsContent) noTagsContent.classList.remove('d-none');
-                    if (noSummariesContent) noSummariesContent.classList.remove('d-none');
-                }
-            })
-            .catch(error => {
-                hideLoading();
-                if (loadingTags) loadingTags.classList.add('d-none');
-                if (loadingSummaries) loadingSummaries.classList.add('d-none');
-                
-                showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
-                
-                // Afficher les messages "aucun contenu"
-                if (noTagsContent) noTagsContent.classList.remove('d-none');
-                if (noSummariesContent) noSummariesContent.classList.remove('d-none');
-            });
-        });
-    }
-    
-    // Exportation des résultats
-    if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', function() {
-            if (!analysisResults || analysisResults.length === 0) {
-                showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
-                return;
-            }
-            
-            window.location.href = '/api/export/csv';
-        });
-    }
-    
-    if (exportJsonBtn) {
-        exportJsonBtn.addEventListener('click', function() {
-            if (!analysisResults || analysisResults.length === 0) {
-                showAlert('Aucun résultat à exporter. Veuillez d\'abord analyser les données.', 'warning');
-                return;
-            }
-            
-            window.location.href = '/api/export/json';
-        });
-    }
-    
-    // Sélection d'un tag pour afficher sa synthèse
-    if (tagSelector) {
-        tagSelector.addEventListener('change', function() {
-            const selectedTag = this.value;
-            
-            if (!selectedTag) {
-                tagSummaryContainer.classList.add('d-none');
-                return;
-            }
-            
-            if (!analysisResults || !analysisResults.summaries[selectedTag]) {
-                showAlert('Données de synthèse non disponibles pour ce tag', 'warning');
-                return;
-            }
-            
-            // Afficher la synthèse du tag sélectionné
-            currentTagName.textContent = selectedTag;
-            tagSummaryContent.innerHTML = formatAnalysis(analysisResults.summaries[selectedTag]);
-            
-            // Afficher les réponses associées à ce tag
-            displayTagResponses(selectedTag, analysisResults.tag_groups[selectedTag]);
-            
-            tagSummaryContainer.classList.remove('d-none');
-        });
-    }
-    
-    // Sauvegarde de la configuration
-    if (saveConfigBtn) {
-        saveConfigBtn.addEventListener('click', function() {
-            const config = {
-                provider: providerSelect.value,
-                model: modelInput.value,
-                api_key: apiKeyInput.value,
-                endpoint: endpointInput.value
-            };
-            
-            // Envoyer la configuration au serveur
-            fetch('/api/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(config)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert('Configuration enregistrée avec succès', 'success');
-                    // Fermer le modal
-                    bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
-                } else {
-                    showAlert(`Erreur lors de la sauvegarde: ${data.error}`, 'danger');
-                }
-            })
-            .catch(error => {
-                showAlert(`Erreur lors de la sauvegarde: ${error.message}`, 'danger');
-            });
-        });
-    }
-    
-    // Gestion du bouton de test
-    if (testBtn) {
-        testBtn.addEventListener('click', async function() {
-            showLoading('Test en cours...');
-            
-            // Afficher une modal pour tester si le clic est bien reçu
-            alert("Le bouton a été cliqué!");
-            
-            // Afficher le spinner sur le bouton de test
-            const spinner = document.createElement('span');
-            spinner.className = 'spinner-border spinner-border-sm me-2';
-            spinner.setAttribute('role', 'status');
-            spinner.setAttribute('aria-hidden', 'true');
-            
-            const originalContent = this.innerHTML;
-            this.innerHTML = '';
-            this.appendChild(spinner);
-            this.appendChild(document.createTextNode('Test en cours...'));
-            this.disabled = true;
-            analyzeBtn.disabled = true;
-
-            // Afficher un message de chargement plus informatif
-            showLoading("Analyse des données d'exemple en cours...");
-
-            try {
-                console.log("Envoi de la requête test_workflow");
-                const response = await fetch('/test_workflow', {
-                    method: 'POST'
-                });
-
-                console.log("Réponse reçue du serveur:", response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
-                }
-
-                const result = await response.json();
-                console.log("Données JSON reçues:", result);
-                
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-                
-                // Masquer le message de chargement
-                hideLoading();
-                
-                displayResults(result);
-                showAlert(`Test effectué avec succès ! ${result.results.length} réponses analysées.`, 'success');
-            } catch (error) {
-                console.error('Erreur détaillée:', error);
-                // Masquer le message de chargement en cas d'erreur
-                hideLoading();
-                showAlert(`Erreur lors du test: ${error.message}`, 'danger');
-            } finally {
-                // Restaurer le bouton
-                this.innerHTML = originalContent;
-                this.disabled = false;
-                analyzeBtn.disabled = fileInput.files.length === 0;
-            }
-        });
-    }
-    
-    // Supprimer l'ancien gestionnaire d'événements onclick s'il existe
-    testBtn.onclick = null;
-    
-    // Gestion du formulaire d'analyse individuelle
-    if (responseForm) {
-        responseForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const responseTextValue = responseText ? responseText.value.trim() : '';
-            if (!responseTextValue) {
-                showAlert('Veuillez saisir une réponse à analyser', 'warning');
-                return;
-            }
-            
-            // Afficher l'indicateur de chargement
-            showLoading('Analyse en cours...');
-            
-            // Récupérer le prompt personnalisé s'il existe
-            const customPrompt = singlePrompt ? singlePrompt.value.trim() : '';
-            
-            try {
-                // Appeler l'API pour l'analyse
-                const response = await fetch('/api/analyze_single', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        response: responseTextValue,
-                        custom_prompt: customPrompt
-                    })
-                });
-                
-                const data = await response.json();
-                hideLoading();
-                
-                if (data.success) {
-                    // Afficher le résultat
-                    if (originalResponse) originalResponse.textContent = responseTextValue;
-                    if (analysisResult) analysisResult.innerHTML = formatJSON(data.analysis);
-                    if (singleResultCard) singleResultCard.classList.remove('d-none');
-                    
-                    showAlert('Analyse terminée avec succès', 'success');
-                } else {
-                    showAlert(`Erreur lors de l'analyse: ${data.error}`, 'danger');
-                }
-            } catch (error) {
-                hideLoading();
-                showAlert(`Erreur lors de l'analyse: ${error.message}`, 'danger');
-            }
-        });
-    }
-    
-    // Ajouter un gestionnaire d'événements pour l'input de fichier
-    if (fileInput) {
-        console.log("Ajout du gestionnaire d'événements pour l'input de fichier");
-        fileInput.addEventListener('change', function() {
-            console.log("Fichier sélectionné:", this.files[0] ? this.files[0].name : "aucun");
-            if (analyzeBtn) {
-                analyzeBtn.disabled = this.files.length === 0;
-            }
-        });
-    } else {
-        console.error("L'élément fileInput n'a pas été trouvé dans le DOM");
-    }
-    
-    // Configurer le drag and drop pour la zone de dépôt
-    const dropZone = getElement('dropZone');
-    if (dropZone) {
-        console.log("Configuration du drag and drop pour la zone de dépôt");
-        
-        // Empêcher le comportement par défaut pour ces événements
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        // Ajouter/supprimer la classe 'dragover' pour le style
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, function() {
-                dropZone.classList.add('dragover');
-            }, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, function() {
-                dropZone.classList.remove('dragover');
-            }, false);
-        });
-        
-        // Gérer le dépôt de fichier
-        dropZone.addEventListener('drop', function(e) {
-            if (e.dataTransfer.files.length) {
-                fileInput.files = e.dataTransfer.files;
-                
-                // Déclencher l'événement change manuellement
-                const event = new Event('change');
-                fileInput.dispatchEvent(event);
-                
-                console.log("Fichier déposé:", e.dataTransfer.files[0].name);
-            }
-        }, false);
-    } else {
-        console.error("L'élément dropZone n'a pas été trouvé dans le DOM");
-    }
-    
-    // Fonctions utilitaires
-    
-    // Affichage d'un indicateur de chargement global
-    function showLoading(message) {
-        const loadingElement = getElement('globalLoading');
-        if (loadingElement) {
-            const loadingText = loadingElement.querySelector('.loading-text');
-            if (loadingText) {
-                loadingText.textContent = message || 'Chargement en cours...';
-            }
-            loadingElement.classList.remove('d-none');
-        }
-    }
-    
-    // Masquer l'indicateur de chargement global
-    function hideLoading() {
-        const loadingElement = getElement('globalLoading');
-        if (loadingElement) {
-            loadingElement.classList.add('d-none');
-        }
-    }
-    
-    // Mise à jour de la visualisation des tags
-    function updateTagsVisualization(results) {
-        if (!results || !results.normalized_tags || Object.keys(results.normalized_tags).length === 0) {
-            if (noTagsContent) noTagsContent.classList.remove('d-none');
-            return;
-        }
-        
-        // Créer le graphique de distribution des tags
-        createTagsChart(results);
-        
-        // Afficher la liste des tags normalisés
-        displayNormalizedTags(results.normalized_tags);
-        
-        // Afficher la section des tags
-        if (tagsContent) tagsContent.classList.remove('d-none');
-        if (noTagsContent) noTagsContent.classList.add('d-none');
-    }
-    
-    // Création du graphique de distribution des tags
-    function createTagsChart(results) {
-        // Vérifier si l'élément canvas existe
-        const chartCanvas = getElement('tagsChart');
-        if (!chartCanvas) {
-            console.error("Élément tagsChart non trouvé");
-            return;
-        }
-        
-        const ctx = chartCanvas.getContext('2d');
-        
-        // Compter les occurrences de chaque tag
-        const tagCounts = {};
-        for (const tag in results.tag_groups) {
-            tagCounts[tag] = results.tag_groups[tag].length;
-        }
-        
-        // Trier les tags par nombre d'occurrences (décroissant)
-        const sortedTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
-        
-        // Limiter à 10 tags maximum pour la lisibilité
-        const topTags = sortedTags.slice(0, 10);
-        
-        // Préparer les données pour le graphique
-        const labels = topTags;
-        const data = topTags.map(tag => tagCounts[tag]);
-        
-        // Créer ou mettre à jour le graphique
-        if (tagsChart) {
-            tagsChart.destroy();
-        }
-        
-        tagsChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Nombre de réponses',
-                    data: data,
-                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: function(tooltipItems) {
-                                return tooltipItems[0].label;
-                            },
-                            label: function(context) {
-                                return `${context.parsed.x} réponses`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-    
-    // Affichage de la liste des tags normalisés
-    function displayNormalizedTags(normalizedTags) {
-        const normalizedTagsList = getElement('normalizedTagsList');
-        if (!normalizedTagsList) {
-            console.error("Élément normalizedTagsList non trouvé");
-            return;
-        }
-        
-        normalizedTagsList.innerHTML = '';
-        
-        // Créer une entrée pour chaque tag normalisé
-        for (const normalizedTag in normalizedTags) {
-            const originalTags = normalizedTags[normalizedTag];
-            
-            const tagItem = document.createElement('div');
-            tagItem.className = 'list-group-item tag-item';
-            tagItem.innerHTML = `
-                <div>
-                    <strong>${normalizedTag}</strong>
-                    <p class="text-muted mb-0 small">
-                        <em>Inclut: ${originalTags.join(', ')}</em>
-                    </p>
-                </div>
-            `;
-            
-            normalizedTagsList.appendChild(tagItem);
-        }
-    }
-    
-    // Mise à jour de la section des synthèses
-    function updateSummariesSection(results) {
-        if (!results || !results.summaries || Object.keys(results.summaries).length === 0) {
-            if (noSummariesContent) noSummariesContent.classList.remove('d-none');
-            return;
-        }
-        
-        // Remplir le sélecteur de tags
-        const tagSelector = getElement('tagSelector');
-        if (!tagSelector) {
-            console.error("Élément tagSelector non trouvé");
-            return;
-        }
-        
-        tagSelector.innerHTML = '<option value="">Sélectionnez un tag...</option>';
-        
-        // Ajouter une option pour chaque tag
-        for (const tag in results.summaries) {
-            const option = document.createElement('option');
-            option.value = tag;
-            option.textContent = tag;
-            tagSelector.appendChild(option);
-        }
-        
-        // Afficher la section des synthèses
-        if (summariesContent) summariesContent.classList.remove('d-none');
-        if (noSummariesContent) noSummariesContent.classList.add('d-none');
-    }
-    
-    // Affichage des réponses associées à un tag
-    function displayTagResponses(tag, responses) {
-        tagResponsesList.innerHTML = '';
-        
-        if (!responses || responses.length === 0) {
-            tagResponsesList.innerHTML = '<p class="text-muted">Aucune réponse associée à ce tag</p>';
-            return;
-        }
-        
-        // Limiter à 50 réponses maximum pour des raisons de performance
-        const displayResponses = responses.slice(0, 50);
-        
-        // Créer une entrée pour chaque réponse
-        displayResponses.forEach((item, index) => {
-            const responseItem = document.createElement('div');
-            responseItem.className = 'response-item';
-            responseItem.innerHTML = `
-                <p class="mb-0"><strong>#${item.index + 1}:</strong> ${escapeHtml(item.response)}</p>
-            `;
-            
-            tagResponsesList.appendChild(responseItem);
-        });
-        
-        if (responses.length > 50) {
-            const moreResponses = document.createElement('p');
-            moreResponses.className = 'text-muted text-center mt-2';
-            moreResponses.textContent = `... et ${responses.length - 50} réponses supplémentaires`;
-            tagResponsesList.appendChild(moreResponses);
-        }
-    }
-    
-    // Mise à jour du tableau de données avec les tags
-    function updateDataTableWithTags(results) {
-        if (!results || !results.response_tags) {
-            return;
-        }
-        
-        // Créer un mapping des réponses aux tags
-        const responseTags = {};
-        results.response_tags.forEach(item => {
-            responseTags[item.index] = item.tags;
-        });
-        
-        // Récupérer les données depuis le serveur (tout récharger)
-        fetch('/api/upload', {
-            method: 'POST',
-            body: new FormData(uploadForm)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateDataTable(data.preview, responseTags);
-            }
-        })
-        .catch(error => {
-            console.error('Erreur lors de la récupération des données:', error);
-        });
-    }
-    
-    // Mise à jour du tableau de données
-    function updateDataTable(data, responseTags) {
-        const dataTable = getElement('dataTable');
-        if (!dataTable) {
-            console.error("Élément dataTable non trouvé");
-            return;
-        }
-        
-        const tbody = dataTable.getElementsByTagName('tbody')[0];
-        if (!tbody) {
-            console.error("Élément tbody non trouvé dans dataTable");
-            return;
-        }
-        
-        tbody.innerHTML = '';
-        
-        if (!data || data.length === 0) {
-            if (noDataContent) noDataContent.classList.remove('d-none');
-            if (dataContent) dataContent.classList.add('d-none');
-            return;
-        }
-        
-        // Créer une ligne pour chaque réponse
-        data.forEach((item, index) => {
-            const row = document.createElement('tr');
-            
-            // Déterminer la colonne à afficher
-            const responseText = item[currentColumnName] || '';
-            
-            // Déterminer les tags associés
-            const tags = responseTags && responseTags[index] ? responseTags[index] : [];
-            
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${escapeHtml(responseText)}</td>
-                <td>${tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('')}</td>
-            `;
-            
-            tbody.appendChild(row);
-        });
-        
-        if (dataContent) dataContent.classList.remove('d-none');
-        if (noDataContent) noDataContent.classList.add('d-none');
-    }
-    
-    // Formatter le texte (convertir les sauts de ligne en HTML)
-    function formatText(text) {
-        if (!text) return '';
-        
-        // Convertir les sauts de ligne en balises <br>
-        return text.replace(/\n/g, '<br>');
-    }
-    
-    // Initialisation
-    function init() {
-        // Afficher les sections "aucun contenu" par défaut
-        if (noTagsContent) noTagsContent.classList.remove('d-none');
-        if (noSummariesContent) noSummariesContent.classList.remove('d-none');
-        if (noDataContent) noDataContent.classList.remove('d-none');
-        
-        // Créer l'élément de chargement global s'il n'existe pas
-        if (!getElement('globalLoading')) {
-            const loadingElement = document.createElement('div');
-            loadingElement.id = 'globalLoading';
-            loadingElement.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center d-none';
-            loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            loadingElement.style.zIndex = '9999';
-            
-            // Ajouter le contenu
-            loadingElement.innerHTML = `
-                <div class="bg-white p-4 rounded shadow">
-                    <div class="d-flex justify-content-center">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Chargement...</span>
-                        </div>
-                    </div>
-                    <p class="text-center mt-2 loading-text">Chargement en cours...</p>
-                </div>
-            `;
-            
-            // Ajouter à la page
-            document.body.appendChild(loadingElement);
-        }
-    }
-    
-    // Lancer l'initialisation
-    init();
-}); 
+} 
