@@ -498,13 +498,13 @@ def generate_tag_summaries_with_mistral(normalized_tags, response_tags, response
         Génère une synthèse concise qui:
         1. Résume les idées principales exprimées dans ces réponses
         2. Mentionne que {len(tag_responses_list)} utilisateurs ont exprimé des idées liées à ce tag
-        3. Inclut 1-2 verbatims représentatifs (citations exactes des réponses)
+        3. Inclut tous les verbatims représentatifs en extrayant UNIQUEMENT les parties des réponses qui concernent spécifiquement le tag "{tag}" (ne pas inclure les parties de réponses non pertinentes pour ce tag)
         
         Format de la réponse:
         {{
             "synthèse": "Résumé des idées principales en 2-3 phrases",
             "nombre_utilisateurs": {len(tag_responses_list)},
-            "verbatims": ["Citation 1", "Citation 2"]
+            "verbatims": ["Extrait pertinent 1", "Extrait pertinent 2", "..."]
         }}
         
         Retourne uniquement l'objet JSON, sans autre texte explicatif.
