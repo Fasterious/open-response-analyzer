@@ -10,6 +10,7 @@ import mistralai
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 import io
+from version import VERSION_STRING
 
 # Chargement des variables d'environnement depuis .env
 load_dotenv()
@@ -57,7 +58,7 @@ MISTRAL_MODEL = "mistral-large-latest"  # Options: mistral-small-latest, mistral
 # Routes principales
 @app.route('/')
 def index():
-    return render_template('index.html', config=config)
+    return render_template('index.html', config=config, version=VERSION_STRING)
 
 @app.route('/api/config', methods=['GET', 'POST'])
 def handle_config():
