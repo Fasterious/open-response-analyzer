@@ -165,7 +165,7 @@ def import_and_test():
                 return jsonify({'error': 'Le fichier CSV doit contenir une colonne \'response\''}), 400
             
             # Limiter à 3 lignes pour les tests
-            df = df.head(3)
+            # df = df.head(3)
             # logger.info(f"Limitation à 3 lignes pour le test")
             
             # Extraire les réponses pour l'extraction des tags
@@ -263,7 +263,6 @@ def extract_tags_with_mistral(responses):
     # Construire le prompt
     prompt = """
     Analyse les réponses suivantes et extrait les concepts clés (tags) présents dans chacune. 
-    Pour chaque réponse, identifie 2 à 5 tags qui représentent les idées principales.
     
     Réponses à analyser:
     """
