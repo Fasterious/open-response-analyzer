@@ -22,62 +22,15 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Configuration par défaut
-DEFAULT_CONFIG = {
-    "model": "mistral-large-latest",
-    "api_key": "",
-    "endpoint": "https://api.mistral.ai/v1/chat/completions",
-    "provider": "mistral"
-}
-
-# Chargement de la configuration depuis un fichier
-CONFIG_FILE = "config.json"
-config = DEFAULT_CONFIG.copy()
-
-try:
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            saved_config = json.load(f)
-            config.update(saved_config)
-except Exception as e:
-    logger.error(f"Erreur lors du chargement de la configuration: {e}")
-
 # Configuration Mistral
-# Vérifier si la valeur dans config.json est une référence à la variable d'environnement
-api_key_config = config.get("api_key", "")
-if api_key_config == "ENV_MISTRAL_API_KEY":
-    # Si c'est une référence, utiliser la variable d'environnement
-    MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
-else:
-    # Sinon, utiliser la valeur de config.json
-    MISTRAL_API_KEY = api_key_config
-
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
 MISTRAL_MODEL = "mistral-large-latest"  # Options: mistral-small-latest, mistral-medium-latest, mistral-large-latest
 
 # Routes principales
 @app.route('/')
 def index():
-    return render_template('index.html', config=config, version=VERSION_STRING)
-
-@app.route('/api/config', methods=['GET', 'POST'])
-def handle_config():
-    global config
-    if request.method == 'POST':
-        new_config = request.json
-        config.update(new_config)
-        
-        # Sauvegarder la configuration
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(config, f)
-        except Exception as e:
-            logger.error(f"Erreur lors de la sauvegarde de la configuration: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
-            
-        return jsonify({"success": True, "config": config})
-    else:
-        return jsonify(config)
+    return render_template('index.html', version=VERSION_STRING)
 
 @app.route('/test_workflow', methods=['POST'])
 def test_workflow():
@@ -97,7 +50,7 @@ def test_workflow():
         
         # Limiter à 3 lignes pour les tests
         df = df.head(3)
-        logger.info(f"Limitation à 3 lignes pour le test")
+        # logger.info(f"Limitation à 3 lignes pour le test")
         
         # Extraire les réponses pour l'extraction des tags
         responses = df['response'].tolist()
@@ -213,7 +166,7 @@ def import_and_test():
             
             # Limiter à 3 lignes pour les tests
             df = df.head(3)
-            logger.info(f"Limitation à 3 lignes pour le test")
+            # logger.info(f"Limitation à 3 lignes pour le test")
             
             # Extraire les réponses pour l'extraction des tags
             responses = df['response'].tolist()
