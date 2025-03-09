@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import mistralai
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
+import io
 
 # Chargement des variables d'environnement depuis .env
 load_dotenv()
@@ -172,6 +173,126 @@ def test_workflow():
 
     except Exception as e:
         logger.error(f"Erreur lors du test: {str(e)}")
+        logger.exception("Détail de l'erreur:")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/import_and_test', methods=['POST'])
+def import_and_test():
+    logger.info("Route /import_and_test appelée")
+    try:
+        # Vérifier si un fichier a été envoyé
+        if 'file' not in request.files:
+            logger.error("Aucun fichier n'a été envoyé")
+            return jsonify({'error': 'Aucun fichier n\'a été envoyé'}), 400
+        
+        file = request.files['file']
+        
+        # Vérifier si le fichier a un nom
+        if file.filename == '':
+            logger.error("Aucun fichier sélectionné")
+            return jsonify({'error': 'Aucun fichier sélectionné'}), 400
+        
+        # Vérifier si le fichier est un CSV
+        if not file.filename.endswith('.csv'):
+            logger.error("Le fichier doit être au format CSV")
+            return jsonify({'error': 'Le fichier doit être au format CSV'}), 400
+        
+        # Lire le fichier CSV
+        logger.info("Lecture du fichier CSV importé")
+        try:
+            # Lire le contenu du fichier en mémoire
+            file_content = file.read().decode('utf-8')
+            df = pd.read_csv(io.StringIO(file_content))
+            logger.info(f"Fichier CSV lu avec succès, {len(df)} lignes trouvées")
+            
+            # Vérifier si la colonne 'response' existe
+            if 'response' not in df.columns:
+                logger.error("Le fichier CSV doit contenir une colonne 'response'")
+                return jsonify({'error': 'Le fichier CSV doit contenir une colonne \'response\''}), 400
+            
+            # Limiter à 3 lignes pour les tests
+            df = df.head(3)
+            logger.info(f"Limitation à 3 lignes pour le test")
+            
+            # Extraire les réponses pour l'extraction des tags
+            responses = df['response'].tolist()
+            
+            # Étape 1: Extraction des tags
+            logger.info("Extraction des tags à partir des réponses")
+            response_tags = extract_tags_with_mistral(responses)
+            logger.info(f"Tags extraits: {response_tags}")
+            
+            # Étape 2: Collecter tous les tags uniques de toutes les réponses
+            all_unique_tags = set()
+            for item in response_tags:
+                all_unique_tags.update(item.get('tags', []))
+            all_unique_tags = list(all_unique_tags)
+            logger.info(f"Tags uniques collectés: {all_unique_tags}")
+            
+            # Étape 3: Normalisation des tags avec Mistral
+            logger.info("Normalisation des tags extraits")
+            normalized_tags = normalize_tags_with_mistral(all_unique_tags)
+            logger.info(f"Tags normalisés: {normalized_tags}")
+            
+            # Étape 4: Réattribution des tags normalisés aux réponses
+            logger.info("Réattribution des tags normalisés aux réponses")
+            normalized_response_tags = reassign_normalized_tags(response_tags, normalized_tags)
+            logger.info(f"Tags normalisés réattribués: {normalized_response_tags}")
+            
+            # Étape 5: Génération des synthèses par tag normalisé
+            logger.info("Génération des synthèses par tag normalisé")
+            tag_summaries = generate_tag_summaries_with_mistral(normalized_tags, normalized_response_tags, responses)
+            logger.info(f"Synthèses générées: {tag_summaries}")
+            
+            # Préparer les résultats
+            results = []
+            for index, row in df.iterrows():
+                logger.info(f"Préparation de la réponse {index+1}/{len(df)}: {row['response'][:50]}...")
+                
+                # Trouver les tags originaux correspondant à cette réponse
+                original_tags = []
+                for tag_item in response_tags:
+                    if tag_item.get('response_id') == index + 1:
+                        original_tags = tag_item.get('tags', [])
+                        break
+                
+                # Trouver les tags normalisés correspondant à cette réponse
+                normalized_tags_for_response = []
+                for tag_item in normalized_response_tags:
+                    if tag_item.get('response_id') == index + 1:
+                        normalized_tags_for_response = tag_item.get('normalized_tags', [])
+                        break
+                
+                # Récupérer les synthèses pour les tags normalisés de cette réponse
+                response_summaries = {}
+                for tag in normalized_tags_for_response:
+                    if tag in tag_summaries:
+                        response_summaries[tag] = tag_summaries[tag]
+                
+                # Ajouter la réponse aux résultats
+                results.append({
+                    'id': int(row.get('id', index + 1)),
+                    'response': row['response'],
+                    'original_tags': original_tags,
+                    'normalized_tags': normalized_tags_for_response,
+                    'tag_summaries': response_summaries
+                })
+            
+            logger.info(f"Préparation terminée pour {len(results)} réponses")
+
+            return jsonify({
+                'success': True,
+                'results': results,
+                'tag_mapping': normalized_tags,
+                'tag_summaries': tag_summaries
+            })
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la lecture du fichier CSV: {str(e)}")
+            return jsonify({'error': f'Erreur lors de la lecture du fichier CSV: {str(e)}'}), 500
+
+    except Exception as e:
+        logger.error(f"Erreur lors de l'importation et du test: {str(e)}")
         logger.exception("Détail de l'erreur:")
         return jsonify({'error': str(e)}), 500
 

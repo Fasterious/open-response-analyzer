@@ -39,13 +39,17 @@
                     <div class="card-header bg-white">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-lightning-fill me-2"></i>
-                            Test avec données d'exemple
+                            Test avec données
                         </h5>
                     </div>
                     <div class="card-body">
-                        <button type="button" class="btn btn-primary w-100" id="testBtn" onclick="testWorkflow()">
+                        <button type="button" class="btn btn-primary w-100 mb-3" id="testBtn" onclick="testWorkflow()">
                             <i class="bi bi-lightning-fill me-2"></i>
                             Tester avec données d'exemple
+                        </button>
+                        <button type="button" class="btn btn-success w-100" id="importBtn" data-bs-toggle="modal" data-bs-target="#importModal">
+                            <i class="bi bi-upload me-2"></i>
+                            Tester avec mes données
                         </button>
                     </div>
                 </div>
@@ -155,6 +159,32 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                     <button type="button" class="btn btn-primary" onclick="saveConfig()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal d'importation de fichier CSV -->
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-upload me-2"></i>
+                        Importer un fichier CSV
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">Sélectionnez un fichier CSV</label>
+                        <input class="form-control" type="file" id="csvFile" accept=".csv">
+                        <div class="form-text">Le fichier doit contenir au moins une colonne 'response' avec les réponses à analyser.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="importSubmitBtn" onclick="importAndTestWorkflow()">Importer et tester</button>
                 </div>
             </div>
         </div>

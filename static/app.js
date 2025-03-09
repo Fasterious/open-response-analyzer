@@ -489,4 +489,118 @@ function showSynthesisTab() {
         const tabInstance = new bootstrap.Tab(synthesisTab);
         tabInstance.show();
     }
+}
+
+// Fonction pour tester le workflow avec un fichier CSV importé
+async function importAndTestWorkflow() {
+    console.log("Importation et test du workflow avec un fichier CSV");
+    
+    // Récupérer le fichier CSV
+    const fileInput = getElement('csvFile');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        showAlert("Veuillez sélectionner un fichier CSV", "warning");
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    if (!file.name.endsWith('.csv')) {
+        showAlert("Le fichier doit être au format CSV", "warning");
+        return;
+    }
+    
+    // Récupérer le bouton d'importation
+    const importBtn = getElement('importSubmitBtn');
+    if (importBtn) {
+        // Sauvegarder le contenu original
+        const originalContent = importBtn.innerHTML;
+        
+        // Afficher le spinner
+        importBtn.innerHTML = `
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Importation en cours...
+        `;
+        importBtn.disabled = true;
+    }
+    
+    // Fermer le modal
+    const importModal = bootstrap.Modal.getInstance(getElement('importModal'));
+    if (importModal) {
+        importModal.hide();
+    }
+    
+    // Afficher les indicateurs de chargement
+    getElement('noTagsContent').style.display = 'none';
+    getElement('loadingTags').classList.remove('d-none');
+    
+    getElement('noSummariesContent').style.display = 'none';
+    getElement('loadingSummaries').classList.remove('d-none');
+    
+    // Afficher un message de chargement global
+    showLoading("Importation et analyse du fichier CSV...");
+    
+    try {
+        // Créer un objet FormData pour envoyer le fichier
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Appeler l'API pour importer et tester le workflow
+        const response = await fetch('/import_and_test', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("Données reçues:", data);
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Masquer les indicateurs de chargement
+        getElement('loadingTags').classList.add('d-none');
+        getElement('loadingSummaries').classList.add('d-none');
+        
+        // Masquer le message de chargement global
+        hideLoading();
+        
+        // Afficher les résultats
+        displayResults(data);
+        
+        // Afficher un message de succès
+        showAlert("Importation et analyse effectuées avec succès !", "success");
+        
+        // Activer l'onglet de synthèse
+        showSynthesisTab();
+    } catch (error) {
+        console.error("Erreur lors de l'importation et de l'analyse:", error);
+        
+        // Masquer les indicateurs de chargement
+        getElement('loadingTags').classList.add('d-none');
+        getElement('loadingSummaries').classList.add('d-none');
+        getElement('noTagsContent').style.display = 'block';
+        getElement('noSummariesContent').style.display = 'block';
+        
+        // Masquer le message de chargement global
+        hideLoading();
+        
+        // Afficher un message d'erreur
+        showAlert(`Erreur lors de l'importation et de l'analyse: ${error.message}`, "danger");
+    } finally {
+        // Restaurer le bouton d'importation
+        const importBtn = getElement('importSubmitBtn');
+        if (importBtn) {
+            importBtn.innerHTML = `Importer et tester`;
+            importBtn.disabled = false;
+        }
+        
+        // Réinitialiser le champ de fichier
+        const fileInput = getElement('csvFile');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+    }
 } 
