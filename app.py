@@ -1,12 +1,10 @@
 import os
 import json
-import csv
 import pandas as pd
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import logging
 from dotenv import load_dotenv
-import mistralai
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 import io
@@ -79,7 +77,7 @@ def test_workflow():
         
         # Étape 5: Génération des synthèses par tag normalisé
         logger.info("Génération des synthèses par tag normalisé")
-        tag_summaries = generate_tag_summaries_with_mistral(normalized_tags, normalized_response_tags, responses)
+        tag_summaries = generate_tag_summaries_with_mistral(normalized_response_tags, responses)
         logger.info(f"Synthèses générées: {tag_summaries}")
         
         # Préparer les résultats
@@ -195,7 +193,7 @@ def import_and_test():
             
             # Étape 5: Génération des synthèses par tag normalisé
             logger.info("Génération des synthèses par tag normalisé")
-            tag_summaries = generate_tag_summaries_with_mistral(normalized_tags, normalized_response_tags, responses)
+            tag_summaries = generate_tag_summaries_with_mistral(normalized_response_tags, responses)
             logger.info(f"Synthèses générées: {tag_summaries}")
             
             # Préparer les résultats
@@ -452,12 +450,11 @@ def reassign_normalized_tags(response_tags, normalized_tags):
     
     return normalized_response_tags
 
-def generate_tag_summaries_with_mistral(normalized_tags, response_tags, responses):
+def generate_tag_summaries_with_mistral(response_tags, responses):
     """
     Génère une synthèse pour chaque tag normalisé en utilisant Mistral AI.
     
     Args:
-        normalized_tags (dict): Dictionnaire des tags normalisés avec leurs tags originaux associés
         response_tags (list): Liste des tags normalisés par réponse
         responses (list): Liste des réponses originales
     
