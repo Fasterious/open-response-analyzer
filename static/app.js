@@ -471,7 +471,18 @@ function displaySynthesesFromResults(tagSummaries) {
     
     // Générer le HTML pour les synthèses
     let html = `
-        <h5 class="mb-4">Synthèses par tag (${Object.keys(tagSummaries).length})</h5>
+        <h5 class="mb-2">Synthèses par tag (${Object.keys(tagSummaries).length})</h5>
+        
+        <div class="mb-4">
+            <a class="text-muted small" data-bs-toggle="collapse" href="#noteCollapse-global" role="button" aria-expanded="false">
+                <i class="bi bi-info-circle me-1"></i>Note sur le nombre de verbatims
+            </a>
+            <div class="collapse" id="noteCollapse-global">
+                <div class="card card-body py-2 px-3 mt-1 bg-light small">
+                    Le nombre d'utilisateurs peut différer du nombre de verbatims car l'analyse initiale regroupe les réponses par thème, mais seuls les passages véritablement représentatifs sont extraits comme verbatims.
+                </div>
+            </div>
+        </div>
         
         <div class="syntheses-container">
             ${formatTagSummaries(tagSummaries)}

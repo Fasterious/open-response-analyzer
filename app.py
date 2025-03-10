@@ -497,6 +497,7 @@ def generate_tag_summaries_with_mistral(response_tags, responses):
         2. Mentionne que {len(tag_responses_list)} utilisateurs ont exprimé des idées liées à ce tag
         3. Inclut tous les verbatims représentatifs en extrayant UNIQUEMENT les parties des réponses qui concernent spécifiquement le tag "{tag}" (ne pas inclure les parties de réponses non pertinentes pour ce tag)
         
+        
         Format de la réponse:
         {{
             "synthèse": "Résumé des idées principales en 2-3 phrases",
