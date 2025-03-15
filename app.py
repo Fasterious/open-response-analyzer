@@ -162,10 +162,6 @@ def import_and_test():
                 logger.error("Le fichier CSV doit contenir une colonne 'response'")
                 return jsonify({'error': 'Le fichier CSV doit contenir une colonne \'response\''}), 400
             
-            # Limiter à 3 lignes pour les tests
-            # df = df.head(3)
-            # logger.info(f"Limitation à 3 lignes pour le test")
-            
             # Extraire les réponses pour l'extraction des tags
             responses = df['response'].tolist()
             
@@ -223,7 +219,7 @@ def import_and_test():
                 
                 # Ajouter la réponse aux résultats
                 results.append({
-                    'id': int(row.get('id', index + 1)),
+                    'id': index + 1,
                     'response': row['response'],
                     'original_tags': original_tags,
                     'normalized_tags': normalized_tags_for_response,
@@ -238,14 +234,43 @@ def import_and_test():
                 'tag_mapping': normalized_tags,
                 'tag_summaries': tag_summaries
             })
-            
+
         except Exception as e:
             logger.error(f"Erreur lors de la lecture du fichier CSV: {str(e)}")
-            return jsonify({'error': f'Erreur lors de la lecture du fichier CSV: {str(e)}'}), 500
+            return jsonify({'error': f'Erreur lors de la lecture du fichier CSV: {str(e)}'}), 400
 
     except Exception as e:
         logger.error(f"Erreur lors de l'importation et du test: {str(e)}")
         logger.exception("Détail de l'erreur:")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_test_data_preview')
+def get_test_data_preview():
+    """Retourne un aperçu des données de test."""
+    try:
+        # Charger le fichier example_data.csv
+        example_file = 'example_data.csv'
+        if not os.path.exists(example_file):
+            return jsonify({'error': 'Fichier de test non trouvé'}), 404
+
+        # Lire le fichier CSV
+        df = pd.read_csv(example_file)
+        
+        # Prendre les 5 premières lignes pour l'aperçu
+        preview_df = df.head(5)
+        
+        # Préparer les données pour le JSON
+        headers = list(preview_df.columns)
+        rows = preview_df.values.tolist()
+        
+        return jsonify({
+            'success': True,
+            'headers': headers,
+            'rows': rows
+        })
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de l'aperçu des données de test: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 def extract_tags_with_mistral(responses):

@@ -70,6 +70,13 @@ function createGlobalLoadingElement() {
 // Créer l'élément de chargement global au chargement de la page
 document.addEventListener('DOMContentLoaded', createGlobalLoadingElement);
 
+// Variables globales pour la pagination et la recherche
+let currentPage = 1;
+let pageSize = 5;
+let allResults = [];
+let filteredResults = [];
+let searchQuery = '';
+
 // Fonction pour afficher les résultats
 function displayResults(data) {
     console.log("Affichage des résultats:", data);
@@ -80,49 +87,166 @@ function displayResults(data) {
         return;
     }
     
+    // Vérifier et corriger les données si nécessaire
+    const correctedResults = validateAndCorrectResults(data.results);
+    
+    // Stocker tous les résultats pour la pagination
+    allResults = correctedResults;
+    filteredResults = [...allResults]; // Copie pour la recherche
+    
     // Afficher les tags
-    displayTagsFromResults(data.results, data.tag_mapping, data.tag_summaries);
+    displayTagsFromResults(correctedResults, data.tag_mapping, data.tag_summaries);
     
     // Afficher les synthèses
     if (data.tag_summaries) {
         displaySynthesesFromResults(data.tag_summaries);
     }
     
-    // Afficher les données brutes
-    const dataTable = getElement('dataTable');
-    if (dataTable) {
-        const tbody = dataTable.querySelector('tbody');
-        if (tbody) {
-            tbody.innerHTML = '';
+    // Afficher les données brutes avec pagination
+    displayDataWithPagination();
+    
+    // Initialiser les contrôles de pagination
+    initPagination();
+    
+    // Initialiser la recherche
+    initSearch();
+    
+    // Afficher un message avec le nombre de résultats
+    showAlert(`${correctedResults.length} réponses chargées avec succès.`, "success");
+}
+
+// Fonction pour valider et corriger les résultats
+function validateAndCorrectResults(results) {
+    if (!results || !Array.isArray(results)) {
+        return [];
+    }
+    
+    return results.map((item, index) => {
+        // S'assurer que chaque élément a un ID de réponse
+        if (!item.response_id) {
+            item.response_id = index + 1;
+        }
+        
+        // S'assurer que la réponse est une chaîne de caractères
+        if (!item.response) {
+            item.response = '';
+        }
+        
+        // S'assurer que les tags sont des tableaux
+        if (!item.tags || !Array.isArray(item.tags)) {
+            item.tags = [];
+        }
+        
+        // S'assurer que les tags normalisés sont des tableaux
+        if (!item.normalized_tags || !Array.isArray(item.normalized_tags)) {
+            item.normalized_tags = [];
+        }
+        
+        return item;
+    });
+}
+
+// Fonction pour initialiser la recherche
+function initSearch() {
+    const searchInput = getElement('dataSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            filterResults();
+        });
+    }
+}
+
+// Fonction pour filtrer les résultats
+function filterResults() {
+    if (!searchQuery) {
+        filteredResults = [...allResults];
+    } else {
+        filteredResults = allResults.filter(item => {
+            // Recherche dans la réponse
+            if (item.response && item.response.toLowerCase().includes(searchQuery)) {
+                return true;
+            }
             
-            data.results.forEach(item => {
+            // Recherche dans les tags originaux
+            if (item.tags && Array.isArray(item.tags)) {
+                if (item.tags.some(tag => tag.toLowerCase().includes(searchQuery))) {
+                    return true;
+                }
+            }
+            
+            // Recherche dans les tags normalisés
+            if (item.normalized_tags && Array.isArray(item.normalized_tags)) {
+                if (item.normalized_tags.some(tag => tag.toLowerCase().includes(searchQuery))) {
+                    return true;
+                }
+            }
+            
+            return false;
+        });
+    }
+    
+    // Réinitialiser la pagination
+    currentPage = 1;
+    
+    // Mettre à jour l'affichage
+    displayDataWithPagination();
+    updatePaginationControls();
+}
+
+// Fonction pour afficher les données avec pagination
+function displayDataWithPagination() {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, filteredResults.length);
+    const currentPageData = filteredResults.slice(startIndex, endIndex);
+    
+    // Afficher les données de la page actuelle
+    const tbody = document.getElementById('dataTableBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        
+        if (currentPageData.length === 0) {
+            // Aucun résultat
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 4;
+            cell.className = 'text-center py-4 text-gray-500';
+            
+            if (searchQuery) {
+                cell.innerHTML = `<i class="bi bi-search me-2"></i>Aucun résultat pour "${searchQuery}"`;
+            } else {
+                cell.innerHTML = 'Aucune donnée disponible';
+            }
+            
+            row.appendChild(cell);
+            tbody.appendChild(row);
+        } else {
+            // Afficher les résultats
+            currentPageData.forEach(item => {
                 const row = document.createElement('tr');
                 
-                // ID
+                // Colonne ID
                 const idCell = document.createElement('td');
-                idCell.textContent = item.id;
+                idCell.textContent = item.response_id || '';
                 row.appendChild(idCell);
                 
-                // Réponse
+                // Colonne Réponse
                 const responseCell = document.createElement('td');
-                responseCell.textContent = item.response;
+                responseCell.textContent = item.response || '';
+                responseCell.classList.add('response-cell');
                 row.appendChild(responseCell);
                 
-                // Tags originaux (colonne séparée)
+                // Colonne Tags Originaux
                 const originalTagsCell = document.createElement('td');
-                if (item.original_tags && item.original_tags.length > 0) {
-                    originalTagsCell.innerHTML = formatTags(item.original_tags, 'bg-secondary');
-                } else {
-                    originalTagsCell.innerHTML = '<span class="text-muted">Aucun tag</span>';
+                if (item.tags && Array.isArray(item.tags)) {
+                    originalTagsCell.innerHTML = formatTags(item.tags, 'bg-gray-200');
                 }
                 row.appendChild(originalTagsCell);
                 
-                // Tags normalisés (colonne séparée)
+                // Colonne Tags Normalisés
                 const normalizedTagsCell = document.createElement('td');
-                if (item.normalized_tags && item.normalized_tags.length > 0) {
-                    normalizedTagsCell.innerHTML = formatTags(item.normalized_tags, 'bg-primary');
-                } else {
-                    normalizedTagsCell.innerHTML = '<span class="text-muted">Aucun tag</span>';
+                if (item.normalized_tags && Array.isArray(item.normalized_tags)) {
+                    normalizedTagsCell.innerHTML = formatTags(item.normalized_tags);
                 }
                 row.appendChild(normalizedTagsCell);
                 
@@ -130,11 +254,151 @@ function displayResults(data) {
             });
         }
         
-        // Masquer le message "pas de données" et afficher le tableau
+        // Afficher la section des données
+        const dataContent = getElement('dataContent');
         const noDataContent = getElement('noDataContent');
-        if (noDataContent) noDataContent.style.display = 'none';
-        dataTable.style.display = 'table';
+        if (dataContent && noDataContent) {
+            dataContent.style.display = 'block';
+            noDataContent.style.display = 'none';
+        }
+        
+        // Mettre à jour les informations de pagination
+        updatePaginationInfo();
     }
+}
+
+// Fonction pour initialiser les contrôles de pagination
+function initPagination() {
+    // Réinitialiser la page courante
+    currentPage = 1;
+    
+    // Récupérer les éléments de pagination
+    const prevPageBtn = getElement('prevPageBtn');
+    const nextPageBtn = getElement('nextPageBtn');
+    const pageSizeSelect = getElement('pageSizeSelect');
+    
+    // Ajouter les écouteurs d'événements
+    if (prevPageBtn) {
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                displayDataWithPagination();
+                updatePaginationControls();
+            }
+        });
+    }
+    
+    if (nextPageBtn) {
+        nextPageBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredResults.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                displayDataWithPagination();
+                updatePaginationControls();
+            }
+        });
+    }
+    
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', () => {
+            pageSize = parseInt(pageSizeSelect.value);
+            currentPage = 1; // Revenir à la première page
+            displayDataWithPagination();
+            updatePaginationControls();
+        });
+    }
+    
+    // Initialiser les contrôles
+    updatePaginationControls();
+}
+
+// Fonction pour mettre à jour les informations de pagination
+function updatePaginationInfo() {
+    const paginationInfo = getElement('paginationInfo');
+    if (paginationInfo) {
+        if (filteredResults.length === 0) {
+            paginationInfo.textContent = 'Aucun résultat';
+        } else {
+            const startIndex = (currentPage - 1) * pageSize + 1;
+            const endIndex = Math.min(startIndex + pageSize - 1, filteredResults.length);
+            paginationInfo.textContent = `Affichage de ${startIndex}-${endIndex} sur ${filteredResults.length} résultats`;
+        }
+    }
+}
+
+// Fonction pour mettre à jour les contrôles de pagination
+function updatePaginationControls() {
+    const prevPageBtn = getElement('prevPageBtn');
+    const nextPageBtn = getElement('nextPageBtn');
+    const pageNumbers = getElement('pageNumbers');
+    
+    // Mettre à jour l'état des boutons précédent/suivant
+    if (prevPageBtn) {
+        prevPageBtn.disabled = currentPage === 1;
+    }
+    
+    const totalPages = Math.ceil(filteredResults.length / pageSize);
+    if (nextPageBtn) {
+        nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+    }
+    
+    // Générer les numéros de page
+    if (pageNumbers) {
+        pageNumbers.innerHTML = '';
+        
+        if (totalPages > 0) {
+            // Déterminer la plage de pages à afficher
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            
+            // Ajuster si on est près de la fin
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+            
+            // Ajouter la première page si nécessaire
+            if (startPage > 1) {
+                addPageNumber(pageNumbers, 1);
+                if (startPage > 2) {
+                    addEllipsis(pageNumbers);
+                }
+            }
+            
+            // Ajouter les pages numérotées
+            for (let i = startPage; i <= endPage; i++) {
+                addPageNumber(pageNumbers, i);
+            }
+            
+            // Ajouter la dernière page si nécessaire
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    addEllipsis(pageNumbers);
+                }
+                addPageNumber(pageNumbers, totalPages);
+            }
+        }
+    }
+}
+
+// Fonction pour ajouter un numéro de page
+function addPageNumber(container, pageNum) {
+    const pageElement = document.createElement('button');
+    pageElement.className = `page-number ${pageNum === currentPage ? 'active' : ''}`;
+    pageElement.textContent = pageNum;
+    pageElement.addEventListener('click', () => {
+        currentPage = pageNum;
+        displayDataWithPagination();
+        updatePaginationControls();
+    });
+    container.appendChild(pageElement);
+}
+
+// Fonction pour ajouter des points de suspension
+function addEllipsis(container) {
+    const ellipsis = document.createElement('span');
+    ellipsis.className = 'px-2 py-1 text-gray-500';
+    ellipsis.textContent = '...';
+    container.appendChild(ellipsis);
 }
 
 // Fonction pour afficher une alerte
@@ -173,91 +437,169 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Fonction pour tester le workflow avec les données d'exemple
+// Fonction pour initialiser les étapes de progression
+function initializeProgressSteps() {
+    const steps = [
+        {
+            id: 'data-loading',
+            title: 'Chargement des données',
+            description: 'Préparation et validation des données d\'entrée',
+            icon: 'bi-file-earmark-text'
+        },
+        {
+            id: 'tag-extraction',
+            title: 'Extraction des tags',
+            description: 'Analyse des réponses et identification des tags',
+            icon: 'bi-tags'
+        },
+        {
+            id: 'tag-normalization',
+            title: 'Normalisation des tags',
+            description: 'Uniformisation et regroupement des tags similaires',
+            icon: 'bi-arrow-repeat'
+        },
+        {
+            id: 'synthesis-generation',
+            title: 'Génération des synthèses',
+            description: 'Création des résumés pour chaque groupe de tags',
+            icon: 'bi-journal-text'
+        }
+    ];
+
+    const progressStepsContainer = getElement('progressStepsDetailed');
+    if (progressStepsContainer) {
+        progressStepsContainer.innerHTML = steps.map(step => `
+            <div class="process-step" id="${step.id}-step">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <i class="bi ${step.icon} text-xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h5 class="text-base font-medium mb-1">${step.title}</h5>
+                        <p class="text-gray-600 text-sm mb-2">${step.description}</p>
+                        <div class="step-status text-sm">
+                            <span class="text-gray-500">
+                                <i class="bi bi-clock mr-1"></i>En attente...
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+// Fonction pour mettre à jour le statut d'une étape
+function updateStepStatus(stepId, status, message = '') {
+    const step = document.getElementById(`${stepId}-step`);
+    if (!step) return;
+
+    const statusElement = step.querySelector('.step-status');
+    if (!statusElement) return;
+
+    let statusHtml = '';
+    step.classList.remove('completed', 'active', 'error');
+
+    switch (status) {
+        case 'waiting':
+            statusHtml = `<span class="text-gray-500"><i class="bi bi-clock mr-1"></i>En attente...</span>`;
+            break;
+        case 'active':
+            statusHtml = `<span class="text-accent"><i class="bi bi-arrow-clockwise mr-1 pulse-animation"></i>En cours...</span>`;
+            step.classList.add('active');
+            break;
+        case 'completed':
+            statusHtml = `<span class="text-secondary"><i class="bi bi-check-circle mr-1"></i>Terminé</span>`;
+            step.classList.add('completed');
+            break;
+        case 'error':
+            statusHtml = `<span class="text-danger"><i class="bi bi-exclamation-circle mr-1"></i>${message || 'Erreur'}</span>`;
+            step.classList.add('error');
+            break;
+    }
+
+    statusElement.innerHTML = statusHtml;
+}
+
+// Modifier la fonction testWorkflow pour utiliser les étapes de progression
 async function testWorkflow() {
     console.log("Test du workflow avec les données d'exemple");
     
+    // Initialiser les étapes de progression
+    initializeProgressSteps();
+    
+    // Afficher l'onglet de progression
+    const progressTab = new bootstrap.Tab(document.getElementById('progress-tab'));
+    progressTab.show();
+    
     // Récupérer le bouton de test
     const testBtn = getElement('testBtn');
+    let originalContent = '';
     if (testBtn) {
-        // Sauvegarder le contenu original
-        const originalContent = testBtn.innerHTML;
-        
-        // Afficher le spinner
-        testBtn.innerHTML = `
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            Test en cours...
-        `;
+        originalContent = testBtn.innerHTML;
+        testBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Test en cours...`;
         testBtn.disabled = true;
     }
-    
-    // Afficher les indicateurs de chargement
-    getElement('noTagsContent').style.display = 'none';
-    getElement('loadingTags').classList.remove('d-none');
-    
-    getElement('noSummariesContent').style.display = 'none';
-    getElement('loadingSummaries').classList.remove('d-none');
-    
-    // Afficher un message de chargement global
-    showLoading("Test du workflow avec les données d'exemple...");
-    
+
     try {
-        // Appeler l'API pour tester le workflow
+        // Étape 1: Chargement des données
+        updateStepStatus('data-loading', 'active');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulation de délai
+        updateStepStatus('data-loading', 'completed');
+
+        // Étape 2: Extraction des tags
+        updateStepStatus('tag-extraction', 'active');
         const response = await fetch('/test_workflow', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
-        
+
+        updateStepStatus('tag-extraction', 'completed');
+
+        // Étape 3: Normalisation des tags
+        updateStepStatus('tag-normalization', 'active');
         const data = await response.json();
-        console.log("Données reçues:", data);
-        
         if (data.error) {
             throw new Error(data.error);
         }
-        
-        // Masquer les indicateurs de chargement
-        getElement('loadingTags').classList.add('d-none');
-        getElement('loadingSummaries').classList.add('d-none');
-        
-        // Masquer le message de chargement global
-        hideLoading();
-        
-        // Afficher les résultats
+        updateStepStatus('tag-normalization', 'completed');
+
+        // Étape 4: Génération des synthèses
+        updateStepStatus('synthesis-generation', 'active');
         displayResults(data);
-        
+        updateStepStatus('synthesis-generation', 'completed');
+
         // Afficher un message de succès
         showAlert("Test effectué avec succès !", "success");
         
-        // Activer l'onglet de synthèse
-        showSynthesisTab();
+        // Activer l'onglet de synthèse après un court délai
+        setTimeout(() => {
+            showSynthesisTab();
+        }, 2000);
+
     } catch (error) {
         console.error("Erreur lors du test:", error);
         
-        // Masquer les indicateurs de chargement
-        getElement('loadingTags').classList.add('d-none');
-        getElement('loadingSummaries').classList.add('d-none');
-        getElement('noTagsContent').style.display = 'block';
-        getElement('noSummariesContent').style.display = 'block';
-        
-        // Masquer le message de chargement global
-        hideLoading();
-        
-        // Afficher un message d'erreur
-        showAlert(`Erreur lors du test: ${error.message}`, "danger");
+        // Mettre à jour le statut de l'étape en cours avec l'erreur
+        const steps = ['data-loading', 'tag-extraction', 'tag-normalization', 'synthesis-generation'];
+        const activeStep = steps.find(step => 
+            document.getElementById(`${step}-step`).classList.contains('active')
+        );
+        if (activeStep) {
+            updateStepStatus(activeStep, 'error', error.message);
+        }
+
+        showAlert(error.message || "Une erreur est survenue lors du test", "danger");
     } finally {
-        // Restaurer le bouton de test
-        const testBtn = getElement('testBtn');
+        // Restaurer l'état original du bouton dans tous les cas
         if (testBtn) {
-            testBtn.innerHTML = `
-                <i class="bi bi-lightning-fill me-2"></i>
-                Tester avec données d'exemple
-            `;
+            testBtn.innerHTML = `<i class="bi bi-lightning-fill mr-2"></i>Tester avec données d'exemple`;
             testBtn.disabled = false;
         }
     }
@@ -265,8 +607,8 @@ async function testWorkflow() {
 
 // Fonction pour formater les tags
 function formatTags(tags, bgClass = 'bg-primary') {
-    if (!tags || tags.length === 0) return '';
-    return tags.map(tag => `<span class="badge ${bgClass} me-1">${tag}</span>`).join(' ');
+    if (!tags || tags.length === 0) return '<span class="text-gray-400">Aucun tag</span>';
+    return tags.map(tag => `<span class="badge ${bgClass} text-white me-1 mb-1">${tag}</span>`).join(' ');
 }
 
 // Fonction pour formater les synthèses de tags
@@ -377,7 +719,14 @@ function displayTagsFromResults(results, tagMapping = null, tagSummaries = null)
                         <h6 class="card-title mb-0">Répartition des tags</h6>
                     </div>
                     <div class="card-body">
-                        <canvas id="tagsChart"></canvas>
+                        <div class="tag-count-list">
+                            ${sortedTags.slice(0, 10).map(item => `
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-primary">${item.tag}</span>
+                                    <span class="badge bg-secondary">${item.count}</span>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -418,40 +767,6 @@ function displayTagsFromResults(results, tagMapping = null, tagSummaries = null)
     
     // Mettre à jour le contenu
     tagsContent.innerHTML = tagsHtml;
-    
-    // Créer le graphique si des tags sont disponibles
-    if (sortedTags.length > 0) {
-        const ctx = document.getElementById('tagsChart');
-        if (ctx) {
-            // Limiter à 10 tags maximum pour le graphique
-            const chartData = sortedTags.slice(0, 10);
-            
-            new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: chartData.map(item => item.tag),
-                    datasets: [{
-                        data: chartData.map(item => item.count),
-                        backgroundColor: [
-                            '#4361ee', '#3a0ca3', '#7209b7', '#f72585', '#4cc9f0',
-                            '#4895ef', '#560bad', '#b5179e', '#f15bb5', '#00b4d8'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'right',
-                            labels: {
-                                boxWidth: 12
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    }
 }
 
 // Fonction pour afficher les synthèses à partir des résultats
@@ -502,116 +817,289 @@ function showSynthesisTab() {
     }
 }
 
-// Fonction pour tester le workflow avec un fichier CSV importé
-async function importAndTestWorkflow() {
-    console.log("Importation et test du workflow avec un fichier CSV");
+// Fonction pour sauvegarder la clé API
+async function saveApiKey() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const apiKeyStatus = document.getElementById('apiKeyStatus');
+    const apiConfigStatus = document.querySelector('.d-flex.align-items-center.gap-2 span');
     
-    // Récupérer le fichier CSV
-    const fileInput = getElement('csvFile');
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        showAlert("Veuillez sélectionner un fichier CSV", "warning");
+    if (!apiKey) {
+        showAlert("Veuillez entrer une clé API", "warning");
         return;
     }
-    
-    const file = fileInput.files[0];
-    if (!file.name.endsWith('.csv')) {
-        showAlert("Le fichier doit être au format CSV", "warning");
-        return;
-    }
-    
-    // Récupérer le bouton d'importation
-    const importBtn = getElement('importSubmitBtn');
-    if (importBtn) {
-        // Sauvegarder le contenu original
-        const originalContent = importBtn.innerHTML;
-        
-        // Afficher le spinner
-        importBtn.innerHTML = `
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            Importation en cours...
-        `;
-        importBtn.disabled = true;
-    }
-    
-    // Fermer le modal
-    const importModal = bootstrap.Modal.getInstance(getElement('importModal'));
-    if (importModal) {
-        importModal.hide();
-    }
-    
-    // Afficher les indicateurs de chargement
-    getElement('noTagsContent').style.display = 'none';
-    getElement('loadingTags').classList.remove('d-none');
-    
-    getElement('noSummariesContent').style.display = 'none';
-    getElement('loadingSummaries').classList.remove('d-none');
-    
-    // Afficher un message de chargement global
-    showLoading("Importation et analyse du fichier CSV...");
     
     try {
-        // Créer un objet FormData pour envoyer le fichier
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        // Appeler l'API pour importer et tester le workflow
-        const response = await fetch('/import_and_test', {
+        const response = await fetch('/save_api_key', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ api_key: apiKey })
         });
         
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
         const data = await response.json();
-        console.log("Données reçues:", data);
         
-        if (data.error) {
-            throw new Error(data.error);
+        if (data.success) {
+            if (apiConfigStatus) {
+                apiConfigStatus.innerHTML = `
+                    <i class="bi bi-circle-fill text-success me-1"></i>
+                    API configurée
+                `;
+                apiConfigStatus.classList.remove('text-danger');
+                apiConfigStatus.classList.add('text-success');
+            }
+            if (apiKeyStatus) {
+                apiKeyStatus.innerHTML = `
+                    <i class="bi bi-check-circle text-success me-1"></i>
+                    API configurée avec succès
+                `;
+            }
+            showAlert("Clé API sauvegardée avec succès", "success");
+            
+            // Masquer l'encart après la sauvegarde réussie
+            const apiConfigContent = document.getElementById('apiConfigContent');
+            const toggleApiConfig = document.getElementById('toggleApiConfig');
+            if (apiConfigContent) {
+                apiConfigContent.style.display = 'none';
+                if (toggleApiConfig) {
+                    toggleApiConfig.querySelector('i').classList.remove('bi-chevron-up');
+                    toggleApiConfig.querySelector('i').classList.add('bi-chevron-down');
+                }
+            }
+        } else {
+            throw new Error(data.error || "Erreur lors de la sauvegarde de la clé API");
         }
-        
-        // Masquer les indicateurs de chargement
-        getElement('loadingTags').classList.add('d-none');
-        getElement('loadingSummaries').classList.add('d-none');
-        
-        // Masquer le message de chargement global
-        hideLoading();
-        
-        // Afficher les résultats
-        displayResults(data);
-        
-        // Afficher un message de succès
-        showAlert("Importation et analyse effectuées avec succès !", "success");
-        
-        // Activer l'onglet de synthèse
-        showSynthesisTab();
     } catch (error) {
-        console.error("Erreur lors de l'importation et de l'analyse:", error);
+        console.error("Erreur lors de la sauvegarde de la clé API:", error);
+        showAlert(error.message || "Erreur lors de la sauvegarde de la clé API", "danger");
         
-        // Masquer les indicateurs de chargement
-        getElement('loadingTags').classList.add('d-none');
-        getElement('loadingSummaries').classList.add('d-none');
-        getElement('noTagsContent').style.display = 'block';
-        getElement('noSummariesContent').style.display = 'block';
-        
-        // Masquer le message de chargement global
-        hideLoading();
-        
-        // Afficher un message d'erreur
-        showAlert(`Erreur lors de l'importation et de l'analyse: ${error.message}`, "danger");
-    } finally {
-        // Restaurer le bouton d'importation
-        const importBtn = getElement('importSubmitBtn');
-        if (importBtn) {
-            importBtn.innerHTML = `Importer et tester`;
-            importBtn.disabled = false;
+        if (apiConfigStatus) {
+            apiConfigStatus.innerHTML = `
+                <i class="bi bi-circle-fill text-danger me-1"></i>
+                API non configurée
+            `;
+            apiConfigStatus.classList.remove('text-success');
+            apiConfigStatus.classList.add('text-danger');
         }
-        
-        // Réinitialiser le champ de fichier
-        const fileInput = getElement('csvFile');
-        if (fileInput) {
-            fileInput.value = '';
+        if (apiKeyStatus) {
+            apiKeyStatus.innerHTML = `
+                <i class="bi bi-exclamation-circle text-danger me-1"></i>
+                Erreur de configuration
+            `;
         }
     }
-} 
+}
+
+// Gestionnaires d'événements pour l'importation de fichiers
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion simple de l'affichage/masquage de l'encart de configuration API
+    const apiConfigContent = document.getElementById('apiConfigContent');
+    const toggleApiConfig = document.getElementById('toggleApiConfig');
+    const saveApiKeyBtn = document.getElementById('saveApiKey');
+    
+    if (apiConfigContent && toggleApiConfig) {
+        toggleApiConfig.addEventListener('click', function() {
+            // Toggle l'affichage
+            if (apiConfigContent.style.display === 'none') {
+                apiConfigContent.style.display = 'block';
+                toggleApiConfig.querySelector('i').classList.remove('bi-chevron-down');
+                toggleApiConfig.querySelector('i').classList.add('bi-chevron-up');
+            } else {
+                apiConfigContent.style.display = 'none';
+                toggleApiConfig.querySelector('i').classList.remove('bi-chevron-up');
+                toggleApiConfig.querySelector('i').classList.add('bi-chevron-down');
+            }
+        });
+    }
+    
+    // Gestionnaire pour le bouton de sauvegarde de la clé API
+    if (saveApiKeyBtn) {
+        saveApiKeyBtn.addEventListener('click', saveApiKey);
+    }
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('csvFile');
+    const browseButton = document.getElementById('browseButton');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const dataSearchInput = document.getElementById('dataSearchInput');
+
+    // Initialiser la recherche
+    if (dataSearchInput) {
+        dataSearchInput.value = '';
+    }
+
+    // Gestionnaire pour le bouton Parcourir
+    if (browseButton) {
+        browseButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
+
+    // Gestionnaire pour le changement de fichier
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                updateSelectedFile(file);
+            }
+        });
+    }
+
+    // Gestionnaire pour le champ de recherche
+    if (dataSearchInput) {
+        dataSearchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            filterResults();
+        });
+    }
+
+    // Gestionnaire pour le fileInput principal (dans la page, pas dans le modal)
+    const mainFileInput = document.getElementById('fileInput');
+    if (mainFileInput) {
+        mainFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    // Afficher le nom du fichier
+                    const fileNameDisplay = document.createElement('div');
+                    fileNameDisplay.className = 'mt-2 text-sm text-primary';
+                    fileNameDisplay.innerHTML = `<i class="bi bi-file-earmark-text me-1"></i>${file.name} (${formatFileSize(file.size)})`;
+                    
+                    // Trouver l'endroit où afficher le nom du fichier
+                    const container = mainFileInput.parentElement;
+                    if (container) {
+                        // Supprimer l'ancien affichage s'il existe
+                        const oldDisplay = container.querySelector('.text-primary');
+                        if (oldDisplay) {
+                            oldDisplay.remove();
+                        }
+                        container.appendChild(fileNameDisplay);
+                    }
+                    
+                    // Charger l'aperçu du fichier
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const lines = e.target.result.split('\n').slice(0, 6); // En-tête + 5 lignes
+                            if (lines.length > 0) {
+                                const headers = lines[0].split(',').map(h => h.trim());
+                                const rows = lines.slice(1).map(line => 
+                                    line.split(',').map(cell => cell.trim())
+                                );
+                                updatePreviewTable(headers, rows);
+                            }
+                        } catch (error) {
+                            console.error("Erreur lors de la lecture du fichier CSV:", error);
+                            showAlert("Erreur lors de la lecture du fichier CSV", "danger");
+                        }
+                    };
+                    reader.readAsText(file);
+                } else {
+                    showAlert("Le fichier doit être au format CSV", "warning");
+                }
+            }
+        });
+    }
+
+    // Gestionnaires pour le glisser-déposer
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-primary');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary');
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    fileInput.files = e.dataTransfer.files;
+                    updateSelectedFile(file);
+                } else {
+                    showAlert("Veuillez sélectionner un fichier CSV", "warning");
+                }
+            }
+        });
+    }
+
+    // Fonction pour mettre à jour l'affichage du fichier sélectionné
+    function updateSelectedFile(file) {
+        if (selectedFileName) {
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                selectedFileName.innerHTML = `
+                    <i class="bi bi-file-earmark-text text-primary"></i>
+                    ${file.name} (${formatFileSize(file.size)})
+                `;
+                selectedFileName.classList.remove('text-danger');
+                selectedFileName.classList.add('text-primary');
+                
+                // Afficher l'aperçu si possible
+                showCsvPreview(file);
+            } else {
+                selectedFileName.innerHTML = `
+                    <i class="bi bi-exclamation-circle text-danger"></i>
+                    Veuillez sélectionner un fichier CSV
+                `;
+                selectedFileName.classList.remove('text-primary');
+                selectedFileName.classList.add('text-danger');
+            }
+        }
+    }
+
+    // Fonction pour formater la taille du fichier
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Fonction pour afficher un aperçu du CSV
+    function showCsvPreview(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                // Lire les premières lignes du fichier
+                const lines = e.target.result.split('\n').slice(0, 5);
+                if (lines.length > 0) {
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    
+                    // Générer le HTML pour l'aperçu
+                    const previewTable = document.getElementById('previewTable');
+                    if (previewTable) {
+                        // En-têtes
+                        const thead = previewTable.querySelector('thead');
+                        thead.innerHTML = `
+                            <tr>
+                                ${headers.map(header => `<th class="px-4 py-2 bg-gray-50">${header}</th>`).join('')}
+                            </tr>
+                        `;
+                        
+                        // Données
+                        const tbody = previewTable.querySelector('tbody');
+                        tbody.innerHTML = lines.slice(1).map(line => `
+                            <tr>
+                                ${line.split(',').map(cell => `<td class="px-4 py-2 border-t">${cell.trim()}</td>`).join('')}
+                            </tr>
+                        `).join('');
+                        
+                        // Afficher la section d'aperçu
+                        document.getElementById('csvPreview').classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error("Erreur lors de la lecture du fichier CSV:", error);
+                showAlert("Erreur lors de la lecture du fichier CSV", "danger");
+            }
+        };
+        reader.readAsText(file);
+    }
+}); 
