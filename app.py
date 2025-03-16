@@ -28,7 +28,7 @@ CORS(app)
 # Configuration Mistral
 MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
-MISTRAL_MODEL = "mistral-large-latest"  # Options: mistral-small-latest, mistral-medium-latest, mistral-large-latest
+MISTRAL_MODEL = "mistral-small-latest"  # Options: mistral-small-latest, mistral-medium-latest, mistral-large-latest
 
 # Dictionnaire pour stocker les sessions d'analyse
 analysis_sessions = {}
@@ -404,7 +404,7 @@ def extract_tags_with_mistral(responses, session=None):
         # Construire le prompt pour Mistral
         prompt = """Tu es un expert en analyse de données textuelles. Ta tâche est d'extraire des tags pertinents à partir de réponses ouvertes.
 
-Pour chaque réponse, identifie 3 à 5 tags qui capturent les thèmes, sentiments ou concepts clés.
+Pour chaque réponse, les tags qui capturent les thèmes, sentiments ou concepts clés.
 Les tags doivent être des mots ou expressions courtes (1-3 mots).
 
 Voici les réponses à analyser:
@@ -779,10 +779,7 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
             else:
                 raise ValueError("Le fichier CSV ne contient pas de colonne 'response' ou 'réponse'")
         
-        # Limiter le nombre de réponses pour les tests
-        if len(responses) > 15:
-            session.add_log(f"Limitation à 15 réponses pour les tests (sur {len(responses)} au total)")
-            responses = responses[:15]
+        # La limitation à 15 réponses a été supprimée pour permettre l'analyse de jeux de données plus grands
         
         # Étape 2: Extraction des tags
         session.update_step("tag-extraction")

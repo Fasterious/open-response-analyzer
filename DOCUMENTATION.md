@@ -7,255 +7,279 @@ Ce document fournit une explication technique détaillée du workflow et du fonc
 1. [Vue d'ensemble](#1-vue-densemble)
 2. [Architecture technique](#2-architecture-technique)
 3. [Workflow détaillé](#3-workflow-détaillé)
-   - [Étape 0: Importation des données](#étape-0-importation-des-données)
-   - [Étape 1: Extraction des tags](#étape-1-extraction-des-tags)
-   - [Étape 2: Normalisation des tags](#étape-2-normalisation-des-tags)
-   - [Étape 3: Réattribution des tags normalisés](#étape-3-réattribution-des-tags-normalisés)
-   - [Étape 4: Regroupement par tag](#étape-4-regroupement-par-tag)
-   - [Étape 5: Génération des synthèses](#étape-5-génération-des-synthèses)
-   - [Étape 6: Sauvegarde et affichage des résultats](#étape-6-sauvegarde-et-affichage-des-résultats)
-4. [Interaction avec les modèles de langage (LLM)](#4-interaction-avec-les-modèles-de-langage-llm)
-5. [Fonctionnalités supplémentaires](#5-fonctionnalités-supplémentaires)
+   - [Étape 1: Chargement des données](#étape-1-chargement-des-données)
+   - [Étape 2: Extraction des tags](#étape-2-extraction-des-tags)
+   - [Étape 3: Normalisation des tags](#étape-3-normalisation-des-tags)
+   - [Étape 4: Génération des synthèses](#étape-4-génération-des-synthèses)
+   - [Étape 5: Présentation des résultats](#étape-5-présentation-des-résultats)
+4. [Communication avec Mistral AI](#4-communication-avec-mistral-ai)
+5. [Gestion des sessions](#5-gestion-des-sessions)
 6. [Interface utilisateur](#6-interface-utilisateur)
 7. [Flux de données complet](#7-flux-de-données-complet)
-8. [Gestion des erreurs et robustesse](#8-gestion-des-erreurs-et-robustesse)
+8. [Gestion des erreurs](#8-gestion-des-erreurs)
 
 ## 1. Vue d'ensemble
 
-L'application "Analyseur de Réponses Ouvertes" est conçue pour analyser des réponses textuelles ouvertes en utilisant un modèle de langage (LLM), principalement Mistral AI. Le workflow complet se déroule en 5 étapes principales, de l'importation des données à la visualisation des résultats.
+L'application "Analyseur de Réponses Ouvertes" est conçue pour analyser des réponses textuelles ouvertes en utilisant l'API Mistral AI. Le workflow complet se déroule en 5 étapes principales, du chargement des données à la présentation des résultats, sans aucune limitation sur le volume de données traitées.
 
 ## 2. Architecture technique
 
 L'application est construite avec:
 - **Backend**: Flask (Python)
-- **Frontend**: HTML, CSS, JavaScript avec Bootstrap
-- **Modèle d'IA**: Principalement Mistral AI (avec support pour OpenAI et Anthropic)
+- **Frontend**: HTML, CSS, JavaScript avec Tailwind CSS
+- **API d'IA**: Mistral AI (modèle mistral-small-latest par défaut)
+- **Gestion des sessions**: Traitement asynchrone avec threading et file d'attente
 
 ## 3. Workflow détaillé
 
-### Étape 0: Importation des données
+### Étape 1: Chargement des données
 
-**Comment ça fonctionne dans le code:**
-- L'utilisateur télécharge un fichier (CSV, JSON ou TXT) via l'interface web
-- La route `/api/upload` (lignes 87-131) traite le fichier:
-  - Détecte le format du fichier
-  - Charge les données dans un DataFrame pandas
-  - Sauvegarde temporairement les données dans `static/temp_data.json`
-- L'utilisateur peut également utiliser des données d'exemple via le bouton "Tester avec données d'exemple" qui appelle la route `/test_workflow` (lignes 640-741)
+**Objectif**: Charger et préparer les données pour l'analyse.
 
-### Étape 1: Extraction des tags
+**Implémentation technique**:
+- La classe `AnalysisSession` gère une session d'analyse unique avec un identifiant UUID
+- L'utilisateur peut choisir entre utiliser des données de test ou importer un fichier CSV
+- Le fichier CSV est validé pour s'assurer qu'il contient une colonne "response" ou "réponse"
+- Les données sont chargées dans un DataFrame pandas puis converties en liste de réponses
+- Aucune limitation n'est appliquée sur le nombre de réponses traitées
+
+**Points clés du code**:
+- Fonction `run_analysis` (lignes ~700-850): Gère le workflow complet d'analyse
+- Validation du format CSV et extraction des réponses
+- Logging détaillé de chaque étape pour le suivi en temps réel
+
+### Étape 2: Extraction des tags
 
 **Objectif**: Identifier les concepts clés (tags) présents dans chaque réponse.
 
-**Comment ça fonctionne dans le code:**
-- La fonction `process_extract_tags` (lignes 330-379) est appelée
-- Les réponses sont traitées par lots de 25 pour éviter les limites de contexte du LLM
-- Pour chaque lot:
-  - Un prompt est construit demandant au LLM d'extraire 2 à 5 tags par réponse
-  - Le LLM est appelé via la fonction `call_llm`
-  - Les tags retournés sont extraits du format JSON
-- Les tags sont dédupliqués pour obtenir une liste de tags uniques
+**Implémentation technique**:
+- Fonction `extract_tags_with_mistral`: Communique avec l'API Mistral pour extraire les tags
+- Les réponses sont formatées et envoyées à Mistral avec un prompt spécifique
+- Mistral identifie les tags pertinents pour chaque réponse sans limitation de nombre
+- Les tags sont retournés au format JSON structuré
 
-**Exemple de prompt utilisé:**
+**Prompt utilisé**:
 ```
-Analyse les réponses suivantes et extrait les concepts clés (tags) présents dans chacune. 
-Pour chaque réponse, identifie 2 à 5 tags qui représentent les idées principales.
+Tu es un expert en analyse de données textuelles. Ta tâche est d'extraire des tags pertinents à partir de réponses ouvertes.
 
-Réponses à analyser:
-1. [réponse 1]
-2. [réponse 2]
-...
-
-Retourne uniquement un tableau JSON de tous les tags uniques que tu as identifiés, 
-sans autre texte explicatif. Le format doit être ["tag1", "tag2", "tag3", ...].
-```
-
-### Étape 2: Normalisation des tags
-
-**Objectif**: Nettoyer et normaliser les tags en regroupant les synonymes et uniformisant les formulations.
-
-**Comment ça fonctionne dans le code:**
-- La fonction `process_normalize_tags` (lignes 380-432) est appelée
-- Un prompt est construit avec la liste des tags extraits
-- Le LLM est appelé pour normaliser les tags
-- Le résultat est un dictionnaire où:
-  - Les clés sont les tags normalisés
-  - Les valeurs sont des listes de tags originaux correspondants
-
-**Exemple de prompt utilisé:**
-```
-Voici une liste de tags extraits de réponses à une question ouverte. 
-Normalise ces tags en regroupant les synonymes, supprimant les doublons et uniformisant les formulations.
-
-Tags à normaliser:
-- tag1
-- tag2
-...
-
-Retourne un objet JSON structuré comme suit, sans autre texte explicatif:
-{
-    "tag normalisé 1": ["tag original 1", "tag original 2", ...],
-    "tag normalisé 2": ["tag original 3", "tag original 4", ...],
-    ...
-}
-
-Assure-toi que chaque tag original est associé à exactement un tag normalisé.
-```
-
-### Étape 3: Réattribution des tags normalisés
-
-**Objectif**: Associer les tags normalisés à chaque réponse.
-
-**Comment ça fonctionne dans le code:**
-- La fonction `process_reassign_tags` (lignes 433-510) est appelée
-- Un mapping inverse est créé pour faciliter la recherche des tags normalisés
-- Les réponses sont traitées par lots de 15
-- Pour chaque lot:
-  - Un prompt est construit avec la liste des tags normalisés et les réponses
-  - Le LLM est appelé pour attribuer les tags normalisés à chaque réponse
-  - Le résultat est une liste d'objets contenant l'index de la réponse et les tags associés
-
-**Exemple de prompt utilisé:**
-```
-Pour chaque réponse ci-dessous, identifie les tags qui s'y appliquent parmi la liste de tags normalisés fournie.
-
-Tags normalisés disponibles:
-- tag normalisé 1
-- tag normalisé 2
-...
-
-Réponses à analyser:
-1. [réponse 1]
-2. [réponse 2]
-...
-
-Retourne un tableau JSON d'objets, où chaque objet contient l'index de la réponse (commençant à 0) et les tags qui s'y appliquent.
-Exemple de format attendu:
-[
-    {"index": 0, "tags": ["tag1", "tag2"]},
-    {"index": 1, "tags": ["tag3"]},
-    ...
-]
-
-Ne retourne que la structure JSON, sans autre texte explicatif.
-```
-
-### Étape 4: Regroupement par tag
-
-**Objectif**: Regrouper les réponses par tag pour faciliter l'analyse.
-
-**Comment ça fonctionne dans le code:**
-- La fonction `process_group_by_tag` (lignes 511-530) est appelée
-- Pour chaque réponse et ses tags associés:
-  - Les réponses sont regroupées par tag
-  - Un dictionnaire est créé où:
-    - Les clés sont les tags normalisés
-    - Les valeurs sont des listes de réponses associées à ce tag
-
-### Étape 5: Génération des synthèses
-
-**Objectif**: Générer des synthèses pour chaque groupe de tags.
-
-**Comment ça fonctionne dans le code:**
-- La fonction `process_generate_summaries` (lignes 531-564) est appelée
-- Pour chaque tag et ses réponses associées:
-  - Un échantillon de 50 réponses maximum est utilisé (pour éviter les problèmes de contexte)
-  - Un prompt est construit demandant au LLM de synthétiser les réponses
-  - Le LLM génère une synthèse structurée qui résume les principales idées, identifie les points communs et divergences, et note les tendances
-
-**Exemple de prompt utilisé:**
-```
-Tu dois synthétiser un ensemble de réponses associées au tag "[tag]".
+Pour chaque réponse, les tags qui capturent les thèmes, sentiments ou concepts clés.
+Les tags doivent être des mots ou expressions courtes (1-3 mots).
 
 Voici les réponses à analyser:
-1. [réponse 1]
-2. [réponse 2]
-...
+[réponses formatées]
 
-Génère une synthèse structurée qui:
-1. Résume les principales idées exprimées
-2. Identifie les points communs et divergences
-3. Note toute tendance ou point d'attention particulier
-
-Ta synthèse doit être concise (max 300 mots) et présenter les informations de manière claire.
+Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
+[
+  {
+    "response_id": 1,
+    "tags": ["tag1", "tag2", "tag3"]
+  },
+  ...
+]
 ```
 
-### Étape 6: Sauvegarde et affichage des résultats
+**Traitement des résultats**:
+- Parsing du JSON retourné par Mistral
+- Extraction de tous les tags uniques pour l'étape de normalisation
+- Logging des tags extraits pour le suivi
 
-**Comment ça fonctionne dans le code:**
-- Les résultats sont sauvegardés dans `static/analysis_results.json` (lignes 173-175)
-- L'interface utilisateur affiche les résultats dans trois onglets principaux:
-  - **Tags**: Visualisation des tags originaux et normalisés avec leur fréquence
-  - **Synthèses**: Résumés automatiques pour chaque tag avec verbatims représentatifs
-  - **Données**: Tableau détaillé des réponses avec leurs tags associés
+### Étape 3: Normalisation des tags
 
-## 4. Interaction avec les modèles de langage (LLM)
+**Objectif**: Regrouper les tags similaires en catégories cohérentes.
 
-L'application utilise principalement Mistral AI, mais supporte également OpenAI et Anthropic:
+**Implémentation technique**:
+- Fonction `normalize_tags_with_mistral`: Communique avec l'API Mistral pour normaliser les tags
+- Tous les tags uniques sont envoyés à Mistral avec un prompt de normalisation
+- Mistral regroupe les tags similaires en catégories cohérentes
+- Fonction `reassign_normalized_tags`: Réattribue les tags normalisés aux réponses originales
 
-- **Mistral AI**: Fonction `call_llm` (lignes 245-271)
-  - Utilise le client officiel MistralAI
-  - Modèle par défaut: "mistral-large-latest"
-  - Température: 0.3 (pour des réponses cohérentes)
+**Prompt utilisé**:
+```
+Tu es un expert en analyse de données textuelles. Ta tâche est de normaliser et regrouper des tags similaires.
 
-- **OpenAI**: Fonction `call_openai` (lignes 272-300)
-  - Utilise l'API OpenAI via requests
-  - Modèle par défaut: "gpt-4"
+Voici une liste de tags extraits de réponses ouvertes:
+[liste de tags]
 
-- **Anthropic**: Fonction `call_anthropic` (lignes 301-329)
-  - Utilise l'API Anthropic via requests
-  - Modèle par défaut: "claude-2"
+Regroupe ces tags en catégories cohérentes. Crée un dictionnaire où:
+- Les clés sont les tags normalisés (catégories)
+- Les valeurs sont des listes de tags originaux qui appartiennent à cette catégorie
 
-## 5. Fonctionnalités supplémentaires
+Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
+{
+  "Tag normalisé 1": ["tag original 1", "tag original 2"],
+  "Tag normalisé 2": ["tag original 3", "tag original 4"],
+  ...
+}
+```
 
-### Analyse rapide de réponses individuelles
+**Traitement des résultats**:
+- Création d'un dictionnaire de mapping entre tags originaux et normalisés
+- Réattribution des tags normalisés à chaque réponse
+- Conservation des tags originaux pour référence
 
-- Route `/analyze_single` (lignes 618-639)
-- Permet d'analyser une seule réponse rapidement
-- Utilise la fonction `analyze_with_mistral` (lignes 565-617)
+### Étape 4: Génération des synthèses
 
-### Exportation des résultats
+**Objectif**: Générer des synthèses pour chaque groupe de réponses partageant un même tag.
 
-- Route `/api/export/<format>` (lignes 188-244)
-- Formats supportés: CSV et JSON
-- Exporte les données brutes, les tags et les synthèses
+**Implémentation technique**:
+- Fonction `generate_tag_summaries_with_mistral`: Communique avec l'API Mistral pour générer des synthèses
+- Pour chaque tag normalisé, toutes les réponses associées sont regroupées
+- Aucune limitation n'est appliquée sur le nombre de réponses par tag
+- Mistral génère une synthèse structurée pour chaque groupe de réponses
 
-### Configuration du modèle
+**Prompt utilisé**:
+```
+Tu es un expert en analyse de données textuelles. Ta tâche est de générer une synthèse pour un groupe de réponses partageant un même tag.
 
-- Route `/api/config` (lignes 68-86)
-- Permet de configurer le modèle utilisé (Mistral, OpenAI, Anthropic)
-- Sauvegarde la configuration dans `config.json`
+Tag: [tag]
+
+Voici les réponses associées à ce tag:
+[réponses formatées]
+
+Génère une synthèse qui:
+1. Résume les points communs et les tendances principales
+2. Identifie le nombre d'utilisateurs concernés
+3. Extrait 2-3 verbatims représentatifs (citations exactes des réponses)
+
+Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
+{
+  "synthèse": "Texte de la synthèse...",
+  "nombre_utilisateurs": X,
+  "verbatims": ["verbatim 1", "verbatim 2", "verbatim 3"]
+}
+```
+
+**Traitement des résultats**:
+- Parsing du JSON retourné par Mistral
+- Organisation des synthèses par tag normalisé
+- Préparation des données pour l'affichage dans l'interface
+
+### Étape 5: Présentation des résultats
+
+**Objectif**: Organiser et présenter les résultats de l'analyse de manière claire et exploitable.
+
+**Implémentation technique**:
+- Les résultats sont structurés en trois sections principales:
+  1. **Synthèses**: Résumés par tag avec verbatims représentatifs
+  2. **Tags**: Mapping entre tags originaux et normalisés
+  3. **Données**: Tableau détaillé des réponses avec leurs tags
+- L'interface utilisateur affiche les résultats de manière interactive
+- Les données sont organisées pour faciliter l'exploration et l'analyse
+
+## 4. Communication avec Mistral AI
+
+L'application utilise l'API Mistral AI pour toutes les tâches d'analyse:
+
+**Configuration**:
+- Modèle utilisé: `mistral-small-latest` (configurable via le fichier .env)
+- Client officiel MistralAI pour Python
+- Clé API stockée dans le fichier .env
+
+**Appels API**:
+- Trois appels principaux à l'API Mistral:
+  1. Extraction des tags (`extract_tags_with_mistral`)
+  2. Normalisation des tags (`normalize_tags_with_mistral`)
+  3. Génération des synthèses (`generate_tag_summaries_with_mistral`)
+- Format de réponse attendu: JSON structuré
+- Gestion des erreurs et parsing robuste des réponses
+
+## 5. Gestion des sessions
+
+L'application utilise un système de sessions pour gérer les analyses:
+
+**Classe `AnalysisSession`**:
+- Chaque analyse crée une session unique avec un identifiant UUID
+- La session stocke:
+  - L'état actuel de l'analyse (initializing, running, completed, error)
+  - L'étape courante (data-loading, tag-extraction, tag-normalization, synthesis-generation)
+  - Les logs d'activité (100 derniers logs)
+  - Les résultats de l'analyse
+- Système de file d'attente pour les logs permettant un suivi en temps réel
+
+**Traitement asynchrone**:
+- L'analyse est exécutée dans un thread séparé pour ne pas bloquer l'interface
+- L'utilisateur peut suivre la progression en temps réel via des requêtes AJAX
+- Les résultats sont disponibles dès que l'analyse est terminée
 
 ## 6. Interface utilisateur
 
-L'interface est organisée en plusieurs sections:
+L'interface utilisateur est organisée en plusieurs sections:
 
-- **Barre de navigation**: Titre de l'application et accès à la configuration
-- **Panneau latéral gauche**: 
-  - Importation de fichiers (glisser-déposer ou sélection)
-  - Bouton pour lancer l'analyse
-  - Bouton pour tester avec des données d'exemple
-  - Exportation des résultats
-  - Analyse rapide d'une réponse individuelle
-- **Panneau principal**: Affichage des résultats en trois onglets
-  - Tags: Visualisation des tags originaux et normalisés
-  - Synthèses: Résumés automatiques par tag
-  - Données: Tableau détaillé des réponses
+**Navigation principale**:
+- Onglets pour naviguer entre les différentes étapes du processus
+
+**Section Démarrer**:
+- Configuration de l'API Mistral
+- Choix entre données de test et importation de fichier
+- Bouton pour lancer l'analyse
+
+**Section Traitement**:
+- Affichage en temps réel de la progression de l'analyse
+- Logs détaillés pour chaque étape
+- Indicateurs visuels de l'état d'avancement
+
+**Sections de résultats**:
+- Synthèses: Résumés par tag avec verbatims
+- Tags: Visualisation du mapping des tags
+- Données: Tableau détaillé des réponses avec pagination et recherche
 
 ## 7. Flux de données complet
 
-1. L'utilisateur télécharge un fichier CSV, JSON ou TXT
-2. Le fichier est traité et les données sont extraites
-3. Les réponses sont envoyées au LLM pour extraction des tags
-4. Les tags sont normalisés par le LLM
-5. Les tags normalisés sont réattribués aux réponses
-6. Les réponses sont regroupées par tag
-7. Des synthèses sont générées pour chaque groupe de tags
-8. Les résultats sont affichés dans l'interface et peuvent être exportés
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Chargement des │     │  Extraction des │     │ Normalisation   │     │  Génération des │
+│     données     │────▶│      tags       │────▶│    des tags     │────▶│    synthèses    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘     └─────────────────┘
+                              │                        │                        │
+                              ▼                        ▼                        ▼
+                        ┌─────────────────────────────────────────────────────────┐
+                        │                  Présentation des résultats             │
+                        └─────────────────────────────────────────────────────────┘
+```
 
-## 8. Gestion des erreurs et robustesse
+1. **Chargement des données**:
+   - Entrée: Fichier CSV ou données de test
+   - Sortie: Liste de réponses textuelles
 
-- Traitement par lots pour éviter les limites de contexte du LLM
-- Gestion des erreurs de parsing JSON avec des expressions régulières
-- Logging détaillé pour le débogage
-- Limitation du nombre de réponses pour les synthèses 
+2. **Extraction des tags**:
+   - Entrée: Liste de réponses
+   - Traitement: Appel à Mistral AI
+   - Sortie: Liste de réponses avec tags associés
+
+3. **Normalisation des tags**:
+   - Entrée: Liste de tous les tags uniques
+   - Traitement: Appel à Mistral AI
+   - Sortie: Mapping entre tags originaux et normalisés
+
+4. **Génération des synthèses**:
+   - Entrée: Réponses regroupées par tag normalisé
+   - Traitement: Appel à Mistral AI
+   - Sortie: Synthèses par tag avec verbatims
+
+5. **Présentation des résultats**:
+   - Entrée: Données structurées des étapes précédentes
+   - Sortie: Interface utilisateur interactive
+
+## 8. Gestion des erreurs
+
+L'application intègre une gestion robuste des erreurs à plusieurs niveaux:
+
+**Validation des entrées**:
+- Vérification du format des fichiers importés
+- Validation de la présence des colonnes requises
+- Contrôle de la clé API Mistral
+
+**Gestion des erreurs API**:
+- Détection des erreurs de communication avec Mistral
+- Parsing robuste des réponses JSON
+- Extraction des messages d'erreur pour le diagnostic
+
+**Logging et suivi**:
+- Logs détaillés à chaque étape du processus
+- Capture et affichage des exceptions
+- Mise à jour du statut de la session en cas d'erreur
+
+**Interface utilisateur**:
+- Affichage des erreurs de manière claire et compréhensible
+- Possibilité de reprendre l'analyse après correction
+- Indicateurs visuels de l'état de l'analyse 
