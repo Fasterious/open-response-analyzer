@@ -565,6 +565,9 @@ function displayResults(data) {
     
     // Afficher un message avec le nombre de résultats
     showAlert(`${correctedResults.length} réponses chargées avec succès.`, "success");
+
+    // Vérifier et corriger l'état des étapes
+    verifyAndFixStepStatuses();
 }
 
 // Fonction pour valider et corriger les résultats
@@ -867,197 +870,67 @@ function escapeHtml(text) {
 
 // Fonction pour initialiser les étapes de progression
 function initializeProgressSteps() {
+    // Définir les étapes du workflow
     const steps = [
         {
             id: 'data-loading',
             title: 'Chargement des données',
-            description: 'Préparation et validation des données d\'entrée',
-            icon: 'bi-file-earmark-text'
+            description: 'Lecture et préparation des réponses à analyser'
         },
         {
             id: 'tag-extraction',
             title: 'Extraction des tags',
-            description: 'Analyse des réponses et identification des tags',
-            icon: 'bi-tags'
+            description: 'Identification des concepts clés dans chaque réponse'
         },
         {
             id: 'tag-normalization',
             title: 'Normalisation des tags',
-            description: 'Uniformisation et regroupement des tags similaires',
-            icon: 'bi-arrow-repeat'
+            description: 'Regroupement des tags similaires en catégories cohérentes'
         },
         {
             id: 'synthesis-generation',
             title: 'Génération des synthèses',
-            description: 'Création des résumés pour chaque groupe de tags',
-            icon: 'bi-journal-text'
+            description: 'Création de résumés pour chaque groupe de réponses'
+        },
+        {
+            id: 'results-preparation',
+            title: 'Préparation des résultats',
+            description: 'Organisation et structuration des résultats pour l\'affichage'
         }
     ];
-
-    const progressStepsContainer = getElement('progressStepsDetailed');
-    if (progressStepsContainer) {
-        progressStepsContainer.innerHTML = steps.map(step => `
-            <div class="relative pl-8 mb-6 group step-container" id="${step.id}-step">
-                <div class="flex items-start">
-                    <div class="flex-shrink-0 text-gray-600">
-                        <i class="bi ${step.icon} text-xl"></i>
-                    </div>
-                    <div class="ml-3 flex-grow">
-                        <div class="flex justify-between items-center">
-                            <h5 class="text-base font-medium mb-1 text-gray-800">${step.title}</h5>
-                            <button class="step-toggle hidden text-gray-400 hover:text-gray-600" data-step="${step.id}">
-                                <i class="bi bi-chevron-down transition-transform duration-300"></i>
-                            </button>
-                        </div>
-                        <p class="text-gray-600 text-sm mb-2">${step.description}</p>
-                        <div class="step-status text-sm">
-                            <span class="text-gray-500">
-                                <i class="bi bi-clock mr-1"></i>En attente...
-                            </span>
-                        </div>
-                        <!-- Conteneur pour les logs d'activité -->
-                        <div class="step-activity-log mt-3 bg-gray-50 rounded-lg p-3 text-sm hidden">
-                            <div class="activity-log-title font-medium text-gray-700 mb-2">
-                                <i class="bi bi-list-ul mr-1"></i>Détails de l'activité
-                            </div>
-                            <div class="activity-log-content space-y-2">
-                                <!-- Les logs d'activité seront ajoutés ici dynamiquement -->
-                            </div>
-                        </div>
-                    </div>
+    
+    // Initialiser les logs d'activité globaux
+    const globalActivityLog = getElement('global-activity-log');
+    if (globalActivityLog) {
+        globalActivityLog.innerHTML = '<div class="text-gray-400">En attente du démarrage de l\'analyse...</div>';
+    }
+    
+    // Initialiser chaque étape avec son statut initial
+    steps.forEach(step => {
+        const stepElement = getElement(`${step.id}-step`);
+        if (!stepElement) return;
+        
+        // Initialiser l'indicateur de statut
+        const statusIndicator = stepElement.querySelector('.status-indicator');
+        if (statusIndicator) {
+            statusIndicator.innerHTML = `
+                <div class="flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-gray-300"></div>
+                    <span class="text-xs text-gray-500 ml-1">En attente</span>
                 </div>
-                <!-- Ligne verticale -->
-                <div class="absolute left-[7px] top-0 h-full w-0.5 bg-gray-200 -z-10"></div>
-                <!-- Point de l'étape -->
-                <div class="absolute left-0 top-0 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white shadow-sm"></div>
-            </div>
-        `).join('');
-        
-        // S'assurer que toutes les étapes sont initialisées avec le statut "waiting"
-        steps.forEach(step => {
-            updateStepStatus(step.id, 'waiting');
-        });
-
-        // Ajouter les écouteurs d'événements pour les boutons de toggle
-        document.querySelectorAll('.step-toggle').forEach(button => {
-            button.addEventListener('click', function() {
-                const stepId = this.getAttribute('data-step');
-                const stepElement = document.getElementById(`${stepId}-step`);
-                const activityLog = stepElement.querySelector('.step-activity-log');
-                const icon = this.querySelector('.bi');
-                
-                if (activityLog.classList.contains('hidden')) {
-                    activityLog.classList.remove('hidden');
-                    icon.classList.remove('bi-chevron-down');
-                    icon.classList.add('bi-chevron-up');
-                } else {
-                    activityLog.classList.add('hidden');
-                    icon.classList.remove('bi-chevron-up');
-                    icon.classList.add('bi-chevron-down');
-                }
-            });
-        });
-    }
-}
-
-// Fonction pour mettre à jour le statut d'une étape
-function updateStepStatus(stepId, status, message = '') {
-    const stepElement = document.getElementById(`${stepId}-step`);
-    if (!stepElement) return;
-    
-    // Récupérer les éléments à modifier
-    const pointElement = stepElement.querySelector('.absolute.left-0.top-0');
-    const lineElement = stepElement.querySelector('.absolute.left-\\[7px\\]');
-    const toggleButton = stepElement.querySelector('.step-toggle');
-    const activityLog = stepElement.querySelector('.step-activity-log');
-    
-    // Réinitialiser les classes
-    pointElement.className = 'absolute left-0 top-0 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm';
-    
-    // Réinitialiser toutes les lignes verticales pour éviter les confusions visuelles
-    if (status === 'active') {
-        // Réinitialiser toutes les lignes verticales des autres étapes
-        document.querySelectorAll('.absolute.left-\\[7px\\]').forEach(line => {
-            line.classList.remove('bg-accent', 'bg-secondary', 'bg-danger');
-            line.classList.add('bg-gray-200');
-        });
-    }
-    
-    // Appliquer les styles en fonction du statut
-    switch (status) {
-        case 'waiting':
-            pointElement.classList.add('bg-gray-400');
-            lineElement.classList.remove('bg-accent', 'bg-secondary', 'bg-danger');
-            lineElement.classList.add('bg-gray-200');
-            
-            // Masquer le bouton de toggle et le log d'activité
-            if (toggleButton) toggleButton.classList.add('hidden');
-            if (activityLog) activityLog.classList.add('hidden');
-            break;
-            
-        case 'active':
-            pointElement.classList.add('bg-accent', 'animate-pulse');
-            lineElement.classList.remove('bg-gray-200', 'bg-secondary', 'bg-danger');
-            lineElement.classList.add('bg-accent');
-            
-            // Afficher le log d'activité pour l'étape active
-            if (activityLog) activityLog.classList.remove('hidden');
-            break;
-            
-        case 'completed':
-            pointElement.classList.add('bg-secondary');
-            lineElement.classList.remove('bg-gray-200', 'bg-accent', 'bg-danger');
-            lineElement.classList.add('bg-secondary');
-            
-            // Afficher le bouton de toggle pour les étapes terminées
-            if (toggleButton) toggleButton.classList.remove('hidden');
-            
-            // Replier automatiquement le log d'activité
-            if (activityLog) activityLog.classList.add('hidden');
-            
-            // Mettre à jour l'icône du bouton de toggle
-            if (toggleButton) {
-                const icon = toggleButton.querySelector('.bi');
-                if (icon) {
-                    icon.classList.remove('bi-chevron-up');
-                    icon.classList.add('bi-chevron-down');
-                }
-            }
-            break;
-            
-        case 'error':
-            pointElement.classList.add('bg-danger');
-            lineElement.classList.remove('bg-gray-200', 'bg-accent', 'bg-secondary');
-            lineElement.classList.add('bg-danger');
-            
-            // Garder le log d'activité visible en cas d'erreur
-            if (activityLog) activityLog.classList.remove('hidden');
-            break;
-    }
-    
-    // Mettre à jour le message de statut
-    const statusElement = stepElement.querySelector('.step-status');
-    if (statusElement) {
-        let statusHTML = '';
-        
-        switch (status) {
-            case 'waiting':
-                statusHTML = `<span class="text-gray-500"><i class="bi bi-clock mr-1"></i>En attente...</span>`;
-                break;
-            case 'active':
-                statusHTML = `<span class="text-accent"><i class="bi bi-arrow-clockwise mr-1 animate-spin"></i>En cours...</span>`;
-                break;
-            case 'completed':
-                statusHTML = `<span class="text-secondary"><i class="bi bi-check-circle mr-1"></i>Terminé</span>`;
-                break;
-            case 'error':
-                statusHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle mr-1"></i>${message || 'Erreur'}</span>`;
-                break;
+            `;
         }
         
-        statusElement.innerHTML = statusHTML;
-    }
+        // Initialiser le log d'activité
+        const activityLog = stepElement.querySelector('.activity-log');
+        if (activityLog) {
+            activityLog.innerHTML = '<div class="text-gray-400">Aucune activité</div>';
+        }
+    });
 }
+
+// Appeler l'initialisation des étapes au chargement de la page
+document.addEventListener('DOMContentLoaded', initializeProgressSteps);
 
 // Fonction pour naviguer vers un onglet spécifique
 function navigateToTab(tabId) {
@@ -1089,54 +962,113 @@ function navigateToTab(tabId) {
 
 // Fonction pour enregistrer une activité dans le log d'une étape
 function logStepActivity(stepId, message, type = 'info') {
-    const stepElement = document.getElementById(`${stepId}-step`);
+    // Ajouter au log global (en ordre chronologique, ancien en premier)
+    const globalActivityLog = getElement('global-activity-log');
+    if (globalActivityLog) {
+        const logItem = document.createElement('div');
+        logItem.className = 'mb-1';
+        
+        // Déterminer la couleur et l'icône en fonction du type
+        let iconClass = '';
+        let textClass = '';
+        
+        switch (type) {
+            case 'success':
+                iconClass = 'bi-check-circle-fill text-secondary';
+                textClass = 'text-secondary';
+                break;
+            case 'error':
+                iconClass = 'bi-exclamation-circle-fill text-danger';
+                textClass = 'text-danger';
+                break;
+            case 'processing':
+                iconClass = 'bi-arrow-clockwise text-accent animate-spin';
+                textClass = 'text-accent';
+                break;
+            default: // info
+                iconClass = 'bi-info-circle-fill text-primary';
+                textClass = 'text-gray-700';
+        }
+        
+        // Créer le contenu du log
+        logItem.innerHTML = `
+            <div class="flex items-start">
+                <i class="bi ${iconClass} mr-1 mt-1 flex-shrink-0"></i>
+                <span class="${textClass}">${message}</span>
+            </div>
+        `;
+        
+        // Ajouter au début du log global
+        globalActivityLog.appendChild(logItem);
+        
+        // Limiter le nombre d'entrées dans le log global
+        const logItems = globalActivityLog.querySelectorAll('div.mb-1');
+        if (logItems.length > 50) {
+            globalActivityLog.removeChild(logItems[logItems.length - 1]);
+        }
+    }
+    
+    // Ajouter au log de l'étape (en ordre chronologique, ancien en premier)
+    const stepElement = getElement(`${stepId}-step`);
     if (!stepElement) return;
     
-    const activityLogContent = stepElement.querySelector('.activity-log-content');
+    const activityLogContent = stepElement.querySelector('.activity-log');
     if (!activityLogContent) return;
     
-    // Créer un nouvel élément de log
-    const logItem = document.createElement('div');
-    logItem.className = 'activity-log-item flex items-start';
+    // Supprimer le message "Aucune activité" s'il existe
+    const noActivityMsg = activityLogContent.querySelector('.text-gray-400');
+    if (noActivityMsg) {
+        activityLogContent.removeChild(noActivityMsg);
+    }
     
-    // Déterminer l'icône et la couleur en fonction du type
-    let iconClass = 'bi-info-circle text-primary';
+    // Ajout : Nettoyer les anciens messages "en cours" dans le log de l'étape lorsque le log est de type 'success'
+    if (type === 'success') {
+        Array.from(activityLogContent.children).forEach(entry => {
+            if (entry.textContent.toLowerCase().includes('en cours')) {
+                entry.remove();
+            }
+        });
+    }
+    
+    // Créer l'élément de log
+    const logItem = document.createElement('div');
+    logItem.className = 'mb-1';
+    
+    // Déterminer la couleur et l'icône en fonction du type
+    let iconClass = '';
+    let textClass = '';
     
     switch (type) {
         case 'success':
-            iconClass = 'bi-check-circle text-secondary';
-            break;
-        case 'warning':
-            iconClass = 'bi-exclamation-triangle text-accent';
+            iconClass = 'bi-check-circle-fill text-secondary';
+            textClass = 'text-secondary';
             break;
         case 'error':
-            iconClass = 'bi-exclamation-circle text-danger';
+            iconClass = 'bi-exclamation-circle-fill text-danger';
+            textClass = 'text-danger';
             break;
         case 'processing':
-            iconClass = 'bi-arrow-clockwise text-primary animate-spin';
+            iconClass = 'bi-arrow-clockwise text-accent animate-spin';
+            textClass = 'text-accent';
             break;
+        default: // info
+            iconClass = 'bi-info-circle-fill text-primary';
+            textClass = 'text-gray-700';
     }
     
-    // Ajouter l'horodatage
-    const now = new Date();
-    const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    
-    // Construire le contenu du log
+    // Créer le contenu du log
     logItem.innerHTML = `
-        <div class="flex-shrink-0 mr-2">
-            <i class="bi ${iconClass}"></i>
-        </div>
-        <div class="flex-grow">
-            <div class="text-gray-700">${message}</div>
-            <div class="text-xs text-gray-500">${timestamp}</div>
+        <div class="flex items-start">
+            <i class="bi ${iconClass} mr-1 mt-1 flex-shrink-0"></i>
+            <span class="${textClass}">${message}</span>
         </div>
     `;
     
-    // Ajouter le log au début du conteneur (pour que les plus récents soient en haut)
-    activityLogContent.insertBefore(logItem, activityLogContent.firstChild);
+    // Ajouter au début du log de l'étape
+    activityLogContent.appendChild(logItem);
     
-    // Limiter le nombre de logs à 20 par étape pour éviter une surcharge
-    const logItems = activityLogContent.querySelectorAll('.activity-log-item');
+    // Limiter le nombre d'entrées dans le log de l'étape
+    const logItems = activityLogContent.querySelectorAll('div.mb-1');
     if (logItems.length > 20) {
         activityLogContent.removeChild(logItems[logItems.length - 1]);
     }
@@ -1150,7 +1082,7 @@ async function runAnalysisWorkflow(isTestData = true) {
     navigateToTab('traitement');
     
     // Réinitialiser explicitement toutes les étapes au statut "waiting"
-    const steps = ['data-loading', 'tag-extraction', 'tag-normalization', 'synthesis-generation'];
+    const steps = ['data-loading', 'tag-extraction', 'tag-normalization', 'synthesis-generation', 'results-preparation'];
     steps.forEach(step => updateStepStatus(step, 'waiting'));
     
     // Désactiver le bouton d'analyse pendant le traitement
@@ -1247,20 +1179,34 @@ async function runAnalysisWorkflow(isTestData = true) {
                     let logStep = currentStep;
                     
                     // Détecter l'étape à partir du message de log
-                    if (log.message.includes('Extraction des tags')) {
-                        logStep = 'tag-extraction';
-                    } else if (log.message.includes('Normalisation des tags')) {
-                        logStep = 'tag-normalization';
-                    } else if (log.message.includes('Génération des synthèses')) {
-                        logStep = 'synthesis-generation';
-                    } else if (log.message.includes('Lecture du fichier') || log.message.includes('Chargement des données')) {
+                    if (log.message.includes('ÉTAPE 1/5') || log.message.includes('Chargement des données')) {
                         logStep = 'data-loading';
+                    } else if (log.message.includes('ÉTAPE 2/5') || log.message.includes('Extraction des tags')) {
+                        logStep = 'tag-extraction';
+                    } else if (log.message.includes('ÉTAPE 3/5') || log.message.includes('Normalisation des tags')) {
+                        logStep = 'tag-normalization';
+                    } else if (log.message.includes('ÉTAPE 4/5') || log.message.includes('Génération des synthèses')) {
+                        logStep = 'synthesis-generation';
+                    } else if (log.message.includes('ÉTAPE 5/5') || log.message.includes('Préparation des résultats')) {
+                        logStep = 'results-preparation';
                     }
                     
                     // Déterminer le type de log
                     let logType = 'info';
                     if (log.message.includes('terminé') || log.message.includes('succès')) {
                         logType = 'success';
+                        // Marquer explicitement l'étape comme terminée si un message de succès est reçu
+                        if (log.message.includes('ÉTAPE 1/5') && log.message.includes('terminé')) {
+                            updateStepStatus('data-loading', 'completed');
+                        } else if (log.message.includes('ÉTAPE 2/5') && log.message.includes('terminé')) {
+                            updateStepStatus('tag-extraction', 'completed');
+                        } else if (log.message.includes('ÉTAPE 3/5') && log.message.includes('terminé')) {
+                            updateStepStatus('tag-normalization', 'completed');
+                        } else if (log.message.includes('ÉTAPE 4/5') && log.message.includes('terminé')) {
+                            updateStepStatus('synthesis-generation', 'completed');
+                        } else if (log.message.includes('ÉTAPE 5/5') && log.message.includes('terminé')) {
+                            updateStepStatus('results-preparation', 'completed');
+                        }
                     } else if (log.message.includes('Erreur') || log.message.includes('erreur')) {
                         logType = 'error';
                     } else if (log.message.includes('en cours') || log.message.includes('démarrage')) {
@@ -1289,6 +1235,20 @@ async function runAnalysisWorkflow(isTestData = true) {
                 
                 // Marquer la dernière étape comme terminée
                 updateStepStatus(currentStep, 'completed');
+                
+                // S'assurer que toutes les étapes sont marquées comme terminées
+                steps.forEach(step => {
+                    if (step !== currentStep) {
+                        const stepElement = getElement(`${step}-step`);
+                        const statusIndicator = stepElement?.querySelector('.status-indicator');
+                        if (statusIndicator && !statusIndicator.textContent.includes('Terminé')) {
+                            updateStepStatus(step, 'completed');
+                        }
+                    }
+                });
+                
+                // Ajouter un log final
+                logStepActivity('results-preparation', 'ANALYSE COMPLÈTE : Toutes les étapes ont été exécutées avec succès', 'success');
             } else if (progressData.status === 'error') {
                 // Gérer les erreurs
                 updateStepStatus(currentStep, 'error', progressData.error_message);
@@ -1299,10 +1259,12 @@ async function runAnalysisWorkflow(isTestData = true) {
         // Afficher les résultats
         if (results) {
             displayResults(results);
+            // Vérifier et corriger l'état des étapes
+            verifyAndFixStepStatuses();
         }
 
         // Afficher un message de succès
-        showAlert("Analyse effectuée avec succès !", "success");
+        showAlert("Analyse effectuée avec succès ! Vous pouvez maintenant explorer les résultats.", "success");
         
         // Attendre un peu avant de naviguer vers l'onglet des synthèses
         setTimeout(() => {
@@ -1653,4 +1615,130 @@ function loadTestData() {
                 `;
             });
     }
+}
+
+// Fonction pour mettre à jour le statut d'une étape
+function updateStepStatus(stepId, status, message = '') {
+    const stepElement = getElement(`${stepId}-step`);
+    if (!stepElement) return;
+    
+    // Récupérer l'indicateur de statut
+    const statusIndicator = stepElement.querySelector('.status-indicator');
+    if (!statusIndicator) return;
+    
+    // Ne pas revenir à un état "active" si l'étape est déjà "completed"
+    if (status === 'active' && statusIndicator.textContent.includes('Terminé')) {
+        console.log(`Étape ${stepId} déjà terminée, ignorant la mise à jour vers "active"`);
+        return;
+    }
+    
+    // Mettre à jour l'indicateur de statut en fonction du statut
+    let statusHTML = '';
+    
+    switch (status) {
+        case 'waiting':
+            statusHTML = `
+                <div class="flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-gray-300"></div>
+                    <span class="text-xs text-gray-500 ml-1">En attente</span>
+                </div>
+            `;
+            break;
+        case 'active':
+            statusHTML = `
+                <div class="flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+                    <span class="text-xs text-accent ml-1">En cours</span>
+                </div>
+            `;
+            // Afficher le log d'activité pour l'étape active
+            const activityLog = stepElement.querySelector('.activity-log');
+            if (activityLog) {
+                activityLog.classList.remove('hidden');
+            }
+            break;
+        case 'completed':
+            statusHTML = `
+                <div class="flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-secondary"></div>
+                    <span class="text-xs text-secondary ml-1">Terminé</span>
+                </div>
+            `;
+            // Garder le log d'activité visible pour les étapes terminées
+            const completedLog = stepElement.querySelector('.activity-log');
+            if (completedLog) {
+                completedLog.classList.remove('hidden');
+            }
+            break;
+        case 'error':
+            statusHTML = `
+                <div class="flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-danger"></div>
+                    <span class="text-xs text-danger ml-1">Erreur</span>
+                </div>
+            `;
+            // Afficher le log d'activité en cas d'erreur
+            const errorLog = stepElement.querySelector('.activity-log');
+            if (errorLog) {
+                errorLog.classList.remove('hidden');
+                if (message) {
+                    // Ajouter le message d'erreur au log d'activité
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'text-danger';
+                    errorMessage.textContent = message;
+                    errorLog.appendChild(errorMessage);
+                }
+            }
+            break;
+    }
+    
+    statusIndicator.innerHTML = statusHTML;
+    
+    // Mettre à jour l'apparence de l'étape
+    const stepNumber = stepElement.querySelector('.w-8.h-8');
+    if (stepNumber) {
+        // Réinitialiser les classes
+        stepNumber.className = 'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full mr-3';
+        
+        switch (status) {
+            case 'waiting':
+                stepNumber.classList.add('bg-gray-200');
+                stepNumber.querySelector('span').className = 'text-gray-500 font-medium';
+                break;
+            case 'active':
+                stepNumber.classList.add('bg-accent', 'bg-opacity-20');
+                stepNumber.querySelector('span').className = 'text-accent font-medium';
+                break;
+            case 'completed':
+                stepNumber.classList.add('bg-secondary', 'bg-opacity-20');
+                stepNumber.querySelector('span').className = 'text-secondary font-medium';
+                break;
+            case 'error':
+                stepNumber.classList.add('bg-danger', 'bg-opacity-20');
+                stepNumber.querySelector('span').className = 'text-danger font-medium';
+                break;
+        }
+    }
+    
+    // Ajouter un log pour le débogage
+    console.log(`Étape ${stepId} mise à jour: ${status}`);
+}
+
+// Fonction pour vérifier et corriger l'état des étapes
+function verifyAndFixStepStatuses() {
+    const steps = ['data-loading', 'tag-extraction', 'tag-normalization', 'synthesis-generation', 'results-preparation'];
+    
+    steps.forEach(step => {
+        const stepElement = getElement(`${step}-step`);
+        if (!stepElement) return;
+        
+        const statusIndicator = stepElement.querySelector('.status-indicator');
+        if (!statusIndicator) return;
+        
+        // Si l'étape est encore marquée comme "en cours" ou "en attente" alors que l'analyse est terminée
+        if (statusIndicator.textContent.includes('En cours') || statusIndicator.textContent.includes('En attente')) {
+            console.log(`Correction de l'étape ${step} qui est encore marquée comme non terminée`);
+            updateStepStatus(step, 'completed');
+        }
+    });
 } 

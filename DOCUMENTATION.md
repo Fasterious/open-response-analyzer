@@ -11,7 +11,7 @@ Ce document fournit une explication technique détaillée du workflow et du fonc
    - [Étape 2: Extraction des tags](#étape-2-extraction-des-tags)
    - [Étape 3: Normalisation des tags](#étape-3-normalisation-des-tags)
    - [Étape 4: Génération des synthèses](#étape-4-génération-des-synthèses)
-   - [Étape 5: Présentation des résultats](#étape-5-présentation-des-résultats)
+   - [Étape 5: Préparation des résultats](#étape-5-préparation-des-résultats)
 4. [Communication avec Mistral AI](#4-communication-avec-mistral-ai)
 5. [Gestion des sessions](#5-gestion-des-sessions)
 6. [Interface utilisateur](#6-interface-utilisateur)
@@ -154,17 +154,47 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
 - Organisation des synthèses par tag normalisé
 - Préparation des données pour l'affichage dans l'interface
 
-### Étape 5: Présentation des résultats
+### Étape 5: Préparation des résultats
 
-**Objectif**: Organiser et présenter les résultats de l'analyse de manière claire et exploitable.
+**Objectif**: Organiser et structurer les résultats de l'analyse pour l'affichage.
 
 **Implémentation technique**:
-- Les résultats sont structurés en trois sections principales:
-  1. **Synthèses**: Résumés par tag avec verbatims représentatifs
-  2. **Tags**: Mapping entre tags originaux et normalisés
-  3. **Données**: Tableau détaillé des réponses avec leurs tags
-- L'interface utilisateur affiche les résultats de manière interactive
-- Les données sont organisées pour faciliter l'exploration et l'analyse
+- Les résultats des étapes précédentes sont consolidés dans une structure de données cohérente
+- Chaque réponse est associée à ses tags originaux et normalisés
+- Les synthèses sont organisées par tag normalisé
+- Le mapping entre tags originaux et normalisés est préservé pour référence
+
+**Structure des résultats**:
+```json
+{
+  "results": [
+    {
+      "response_id": 1,
+      "response": "Texte de la réponse...",
+      "tags": ["tag1", "tag2"],
+      "normalized_tags": ["Tag normalisé 1", "Tag normalisé 2"]
+    },
+    ...
+  ],
+  "tag_mapping": {
+    "Tag normalisé 1": ["tag1", "tag3", "tag5"],
+    "Tag normalisé 2": ["tag2", "tag4", "tag6"]
+  },
+  "tag_summaries": {
+    "Tag normalisé 1": {
+      "synthèse": "Texte de la synthèse...",
+      "nombre_utilisateurs": 10,
+      "verbatims": ["verbatim 1", "verbatim 2", "verbatim 3"]
+    },
+    ...
+  }
+}
+```
+
+**Points clés du code**:
+- Organisation des données pour faciliter l'exploration et l'analyse
+- Préparation des données pour l'affichage dans les différentes sections de l'interface
+- Logging détaillé pour le suivi de la progression
 
 ## 4. Communication avec Mistral AI
 
@@ -256,9 +286,9 @@ L'interface utilisateur est organisée en plusieurs sections:
    - Traitement: Appel à Mistral AI
    - Sortie: Synthèses par tag avec verbatims
 
-5. **Présentation des résultats**:
+5. **Préparation des résultats**:
    - Entrée: Données structurées des étapes précédentes
-   - Sortie: Interface utilisateur interactive
+   - Sortie: Structure des résultats pour l'affichage
 
 ## 8. Gestion des erreurs
 

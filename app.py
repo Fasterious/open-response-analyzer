@@ -38,7 +38,7 @@ class AnalysisSession:
     def __init__(self, session_id):
         self.session_id = session_id
         self.status = "initializing"  # initializing, running, completed, error
-        self.current_step = "data-loading"  # data-loading, tag-extraction, tag-normalization, synthesis-generation
+        self.current_step = "data-loading"  # data-loading, tag-extraction, tag-normalization, synthesis-generation, results-preparation
         self.results = None
         self.error_message = None
         self.logs = deque(maxlen=100)  # Garder les 100 derniers logs
@@ -82,7 +82,7 @@ class AnalysisSession:
         """Définir les résultats de l'analyse"""
         self.results = results
         self.status = "completed"
-        self.add_log("Analyse terminée avec succès", "INFO")
+        self.add_log("Analyse terminée avec succès", "success")
 
 # Fonction pour créer une nouvelle session d'analyse
 def create_analysis_session():
@@ -448,8 +448,15 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
             else:
                 raise ValueError("Impossible d'extraire le JSON de la réponse")
         
+        # Compter le nombre total de tags uniques
+        all_tags = []
+        for item in extracted_tags:
+            if 'tags' in item and item['tags']:
+                all_tags.extend(item['tags'])
+        unique_tags = list(set(all_tags))
+        
         if session:
-            session.add_log(f"Tags extraits: {extracted_tags[:3]}...")
+            session.add_log(f"Tags extraits avec succès: {len(unique_tags)} tags uniques identifiés")
         
         return extracted_tags
     
@@ -513,7 +520,7 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
                 raise ValueError("Impossible d'extraire le JSON de la réponse")
         
         if session:
-            session.add_log(f"Tags normalisés: {normalized_tags}")
+            session.add_log(f"Tags normalisés: {len(normalized_tags)} catégories créées")
         
         return normalized_tags
     
@@ -645,7 +652,7 @@ Réponds UNIQUEMENT au format JSON suivant, sans aucun texte supplémentaire:
             summaries[tag] = summary
         
         if session:
-            session.add_log(f"Synthèses générées: {list(summaries.keys())}")
+            session.add_log(f"Synthèses générées pour {len(summaries)} tags")
         
         return summaries
     
@@ -734,7 +741,7 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
         
         # Étape 1: Chargement des données
         session.update_step("data-loading")
-        session.add_log("Chargement des données en cours...")
+        session.add_log("ÉTAPE 1/5 : Chargement des données en cours...")
         
         responses = []
         
@@ -750,14 +757,14 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
                 raise FileNotFoundError(f"Fichier de données de test non trouvé: {test_data_path}")
             
             # Lire le fichier CSV
-            session.add_log("Lecture du fichier CSV")
+            session.add_log("Lecture du fichier CSV de test")
             df = pd.read_csv(test_data_path)
             
             # Extraire les réponses
             if 'response' in df.columns or 'réponse' in df.columns:
                 response_col = 'response' if 'response' in df.columns else 'réponse'
                 responses = df[response_col].tolist()
-                session.add_log(f"Fichier CSV lu avec succès, {len(responses)} lignes trouvées")
+                session.add_log(f"Fichier CSV lu avec succès, {len(responses)} réponses trouvées")
             else:
                 raise ValueError("Le fichier CSV ne contient pas de colonne 'response' ou 'réponse'")
         else:
@@ -775,15 +782,15 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
             if 'response' in df.columns or 'réponse' in df.columns:
                 response_col = 'response' if 'response' in df.columns else 'réponse'
                 responses = df[response_col].tolist()
-                session.add_log(f"Fichier CSV importé lu avec succès, {len(responses)} lignes trouvées")
+                session.add_log(f"Fichier CSV importé lu avec succès, {len(responses)} réponses trouvées")
             else:
                 raise ValueError("Le fichier CSV ne contient pas de colonne 'response' ou 'réponse'")
         
-        # La limitation à 15 réponses a été supprimée pour permettre l'analyse de jeux de données plus grands
+        session.add_log("ÉTAPE 1/5 : Chargement des données terminé avec succès", "success")
         
         # Étape 2: Extraction des tags
         session.update_step("tag-extraction")
-        session.add_log("Extraction des tags à partir des réponses")
+        session.add_log("ÉTAPE 2/5 : Extraction des tags à partir des réponses")
         
         # Extraire les tags avec Mistral
         response_tags = extract_tags_with_mistral(responses, session)
@@ -795,27 +802,34 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
                 all_tags.extend(item['tags'])
         
         unique_tags = list(set(all_tags))
-        session.add_log(f"Tags uniques collectés: {unique_tags}")
+        session.add_log(f"Tags uniques collectés: {len(unique_tags)} tags identifiés")
+        session.add_log("ÉTAPE 2/5 : Extraction des tags terminée avec succès", "success")
         
         # Étape 3: Normalisation des tags
         session.update_step("tag-normalization")
-        session.add_log("Normalisation des tags extraits")
+        session.add_log("ÉTAPE 3/5 : Normalisation des tags extraits")
         
         # Normaliser les tags avec Mistral
         normalized_tags = normalize_tags_with_mistral(unique_tags, session)
-        session.add_log(f"Tags normalisés: {normalized_tags}")
+        session.add_log(f"Tags normalisés: {len(normalized_tags)} catégories créées")
         
         # Réattribuer les tags normalisés aux réponses
         normalized_response_tags = reassign_normalized_tags(response_tags, normalized_tags, session)
         session.add_log("Tags normalisés réattribués aux réponses")
+        session.add_log("ÉTAPE 3/5 : Normalisation des tags terminée avec succès", "success")
         
         # Étape 4: Génération des synthèses
         session.update_step("synthesis-generation")
-        session.add_log("Génération des synthèses par tag normalisé")
+        session.add_log("ÉTAPE 4/5 : Génération des synthèses par tag normalisé")
         
         # Générer les synthèses avec Mistral
         tag_summaries = generate_tag_summaries_with_mistral(normalized_response_tags, responses, session)
-        session.add_log("Synthèses générées")
+        session.add_log(f"Synthèses générées pour {len(tag_summaries)} tags")
+        session.add_log("ÉTAPE 4/5 : Génération des synthèses terminée avec succès", "success")
+        
+        # Étape 5: Préparation des résultats
+        session.update_step("results-preparation")
+        session.add_log("ÉTAPE 5/5 : Préparation des résultats pour l'affichage")
         
         # Préparer les résultats
         results = {
@@ -835,12 +849,13 @@ def run_analysis(session_id, use_test_data, uploaded_file=None):
                     'normalized_tags': item.get('normalized_tags', [])
                 }
                 results['results'].append(result_item)
-                session.add_log(f"Préparation de la réponse {i+1}/{len(responses)}: {response[:30]}...")
         
         session.add_log(f"Préparation terminée pour {len(results['results'])} réponses")
+        session.add_log("ÉTAPE 5/5 : Préparation des résultats terminée avec succès", "success")
         
         # Définir les résultats et marquer la session comme terminée
         session.set_results(results)
+        session.add_log("ANALYSE COMPLÈTE : Toutes les étapes ont été exécutées avec succès", "success")
     
     except Exception as e:
         logger.error(f"Erreur lors de l'analyse: {str(e)}")

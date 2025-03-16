@@ -11,11 +11,12 @@ Une application minimaliste et efficace pour analyser des réponses ouvertes en 
 ## 🚀 Fonctionnalités
 
 - Importation de fichiers CSV contenant des réponses à analyser
-- Analyse automatique des réponses en 4 étapes:
-  1. **Extraction des tags** : Identification des concepts clés dans chaque réponse sans limitation de nombre
-  2. **Normalisation des tags** : Regroupement des synonymes et uniformisation des formulations
-  3. **Réattribution des tags normalisés** : Association des tags normalisés à chaque réponse
+- Analyse automatique des réponses en 5 étapes:
+  1. **Chargement des données** : Lecture et préparation des réponses à analyser
+  2. **Extraction des tags** : Identification des concepts clés dans chaque réponse sans limitation de nombre
+  3. **Normalisation des tags** : Regroupement des synonymes et uniformisation des formulations
   4. **Génération de synthèses par tag** : Résumé des idées principales avec nombre d'utilisateurs et verbatims
+  5. **Préparation des résultats** : Organisation et structuration des données pour l'affichage
 - Interface intuitive avec trois sections principales:
   - **Synthèses** : Résumés automatiques pour chaque tag avec verbatims représentatifs
   - **Tags** : Visualisation des tags originaux et normalisés avec leur mapping
@@ -26,6 +27,8 @@ Une application minimaliste et efficace pour analyser des réponses ouvertes en 
 ## 📖 Documentation
 
 Pour une explication technique détaillée du workflow et du fonctionnement interne de l'application, consultez le fichier [DOCUMENTATION.md](DOCUMENTATION.md).
+
+Pour une description détaillée des prompts envoyés à Mistral AI et des résultats attendus à chaque étape, consultez le fichier [WORKFLOW_DETAILLE.md](WORKFLOW_DETAILLE.md).
 
 ## 🛠 Prérequis
 
@@ -84,7 +87,7 @@ python3 app.py
 
 ## 🔍 Processus d'analyse
 
-L'application utilise un processus en plusieurs étapes pour analyser les réponses:
+L'application utilise un processus en cinq étapes pour analyser les réponses:
 
 1. **Chargement des données**: Lecture du fichier CSV et extraction des réponses
 2. **Extraction des tags**: Utilisation de Mistral AI pour identifier les concepts clés dans chaque réponse
@@ -93,6 +96,7 @@ L'application utilise un processus en plusieurs étapes pour analyser les répon
    - Un résumé des idées principales
    - Le nombre d'utilisateurs concernés
    - Des verbatims représentatifs (citations exactes)
+5. **Préparation des résultats**: Organisation et structuration des données pour l'affichage dans l'interface
 
 Ce processus permet d'obtenir une vue d'ensemble structurée des retours utilisateurs, facilitant l'identification des tendances et des problématiques principales.
 
